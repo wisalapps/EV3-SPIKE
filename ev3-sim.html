@@ -1,0 +1,1714 @@
+<title>محاكي EV3</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one workbench screen — simulator stage with EV3 port strip, settings rail beside it (stacks under on phones) */
+:root{
+  --bg:#13171c; --panel:#1b2128; --raise:#232a33; --line:#2e3742;
+  --fg:#e9edf1; --muted:#8e99a6; --accent:#f3b230; --accent-ink:#1b1406;
+  --ok:#3ddc84; --warn:#f5a524; --bad:#ff5a4a; --stage:#0e1115;
+  --f-display:"Readex Pro","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--fg)}
+body{margin:0}
+body{font-family:var(--f-body);font-size:14px;line-height:1.55}
+*{box-sizing:border-box}
+.app{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 28px;max-width:1500px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.mark{width:40px;height:40px;border-radius:9px;background:#d5d8db;position:relative;flex:none;box-shadow:inset 0 0 0 2px #9aa0a6}
+.mark::before{content:"";position:absolute;inset:7px 7px 19px;background:#c4cbbd;border-radius:2px;box-shadow:inset 0 0 0 1.5px #55595e}
+.mark::after{content:"";position:absolute;width:12px;height:12px;left:14px;bottom:5px;border-radius:3px;background:#4c5157;box-shadow:0 0 0 2.5px var(--ok)}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.45rem;margin:0;letter-spacing:0}
+h1 span{color:var(--accent);font-family:var(--f-mono);font-weight:700}
+.tag{color:var(--muted);font-size:.85rem;margin:0}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:.85rem;white-space:nowrap}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted);display:block}
+.chip.on i{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media(min-width:1040px){.layout{grid-template-columns:minmax(0,1fr) 350px}}
+.stage{min-width:0;display:flex;flex-direction:column;gap:10px}
+.hud{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hud h2{font-family:var(--f-display);font-size:1.15rem;margin:0;font-weight:600}
+.hud p{margin:2px 0 0;color:var(--muted);font-size:.85rem;max-width:60ch}
+.hud-nums{display:flex;gap:18px}
+.num{display:flex;flex-direction:column;align-items:flex-start}
+.num small{color:var(--muted);font-size:.72rem;letter-spacing:.04em}
+.num b{font-family:var(--f-mono);font-size:1.35rem;font-variant-numeric:tabular-nums;color:var(--accent);line-height:1.15}
+.wrap{position:relative;border-radius:14px;overflow:hidden;background:var(--stage);border:1px solid var(--line);touch-action:none;user-select:none;-webkit-user-select:none}
+canvas#cv,canvas#gl{display:block;width:100%}
+canvas#gl{touch-action:none;cursor:grab}
+.ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 clamp(48px,14vw,140px) var(--f-display);color:var(--accent);text-shadow:0 4px 18px rgba(0,0,0,.6);pointer-events:none}
+.ov.small{font-size:clamp(28px,6vw,56px)}
+.toast{position:absolute;left:12px;right:12px;bottom:12px;margin:0 auto;max-width:520px;background:rgba(27,33,40,.95);border:1px solid var(--warn);color:var(--fg);border-radius:10px;padding:9px 12px;font-size:.8rem;pointer-events:none;z-index:3}
+.camhint{position:absolute;top:10px;left:12px;font-size:.72rem;color:rgba(233,237,241,.75);background:rgba(14,17,21,.55);padding:3px 9px;border-radius:999px;pointer-events:none}
+.touch{position:absolute;inset:0;pointer-events:none;--stick:124px;--btn:58px;--op:.85;--sx:14px;--sy:14px;--bx:14px;--by:14px;opacity:var(--op)}
+.touch[hidden]{display:none!important}
+.stick{position:absolute;bottom:var(--sy);width:var(--stick);height:var(--stick);border-radius:50%;background:rgba(233,237,241,.08);border:2px solid rgba(233,237,241,.22);pointer-events:auto;touch-action:none}
+.stick.l{left:var(--sx)}.stick.r{right:var(--sx)}
+.touch.lefty:not(.tank) .stick.l{left:auto;right:var(--sx)}
+.stick .knob{position:absolute;left:50%;top:50%;width:calc(var(--stick)*.44);height:calc(var(--stick)*.44);margin:calc(var(--stick)*-.22) 0 0 calc(var(--stick)*-.22);border-radius:50%;background:rgba(243,178,48,.85);box-shadow:0 2px 10px rgba(0,0,0,.4)}
+.stick .lbl{position:absolute;top:-22px;left:0;right:0;text-align:center;font-size:.72rem;color:rgba(233,237,241,.7)}
+.tbtns{position:absolute;right:var(--bx);bottom:var(--by);display:grid;grid-template-columns:repeat(2,var(--btn));gap:10px;pointer-events:none}
+.touch.lefty .tbtns{right:auto;left:var(--bx)}
+.touch.tank .tbtns{bottom:auto;top:var(--by);grid-template-columns:repeat(4,calc(var(--btn)*.86))}
+.touch.row .tbtns{grid-template-columns:repeat(4,var(--btn))}
+.tb{pointer-events:auto;width:var(--btn);height:var(--btn);border-radius:50%;border:2px solid rgba(233,237,241,.3);background:rgba(27,33,40,.78);color:var(--fg);font:600 calc(var(--btn)*.125) var(--f-body);display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.15;padding:4px;touch-action:none}
+.touch.tank .tb{width:calc(var(--btn)*.86);height:calc(var(--btn)*.86)}
+.tabs{display:flex;gap:4px;background:var(--raise);border-radius:9px;padding:3px;margin-bottom:10px}
+.tabs button{flex:1;border:0;background:transparent;color:var(--muted);font:600 .8rem var(--f-body);padding:7px 6px;border-radius:7px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--panel);color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
+.bindb{border:1px solid var(--line);background:var(--raise);color:var(--fg);font:600 .78rem var(--f-mono);padding:5px 10px;border-radius:7px;cursor:pointer;min-width:74px}
+.bindb.wait{background:var(--accent);color:var(--accent-ink);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+#tester{width:100%;height:96px;display:block;background:var(--raise);border-radius:9px;margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chips button{border:1px solid var(--line);background:var(--raise);color:var(--fg);font:500 .75rem var(--f-body);padding:5px 10px;border-radius:999px;cursor:pointer;text-align:right}
+.chat{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;margin-bottom:10px}
+.chat:empty{display:none}
+.msg{padding:9px 12px;border-radius:11px;font-size:.84rem;line-height:1.65;min-width:0;overflow-wrap:anywhere}
+.msg.u{background:#2a2516;align-self:flex-start;max-width:90%}
+.msg.a{background:var(--raise);border:1px solid var(--line)}
+.msg.a strong{color:var(--accent)}
+.msg ol,.msg ul{margin:4px 0;padding-inline-start:20px}
+.msg p{margin:4px 0}
+textarea{width:100%;background:var(--raise);color:var(--fg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font:inherit;resize:vertical;min-height:58px}
+.pick{font-size:.75rem;color:var(--muted)}
+.ptabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px}
+.ptabs button{display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:transparent;color:var(--muted);font:600 .74rem var(--f-body);padding:8px 4px;border-radius:10px;cursor:pointer;min-width:0}
+.ptabs button i{font-style:normal;font-size:1.05rem;line-height:1;color:var(--fg);opacity:.75}
+.ptabs button:hover{background:var(--raise);color:var(--fg)}
+.ptabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.ptabs button[aria-selected="true"] i{color:var(--accent-ink);opacity:1}
+@media(min-width:1040px){aside{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;max-height:100vh;overflow-y:auto;padding-bottom:16px}}
+.howto{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:8px;font-size:.84rem;line-height:1.7}.howto b{color:var(--fg)}
+.pyhead{display:flex;justify-content:space-between;gap:8px;font-size:.78rem;color:var(--muted);margin:10px 0 6px;flex-wrap:wrap}
+.pyw{font-family:var(--f-mono);font-variant-numeric:tabular-nums}.pyw.bad{color:var(--bad);font-weight:700}
+#pyCode{width:100%;min-height:340px;background:var(--bg);color:#e6edf3;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:13px/1.6 var(--f-mono);tab-size:4;white-space:pre;overflow:auto;resize:vertical;text-align:left}
+.pymsg{margin:8px 0 0;font-size:.8rem;padding:8px 10px;border-radius:8px;background:rgba(61,220,132,.12);color:var(--fg)}.pymsg.bad{background:rgba(255,90,74,.14);color:#ffb4ab}
+.pyout{margin:8px 0 0;background:#0b0e12;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:12px/1.5 var(--f-mono);max-height:160px;overflow:auto;white-space:pre-wrap;text-align:left}
+.pyref{margin-top:10px;font-size:.78rem}.pyref summary{cursor:pointer;color:var(--accent)}.pyref pre{background:var(--raise);padding:10px;border-radius:8px;overflow-x:auto;font:11.5px/1.6 var(--f-mono);text-align:left}
+.hudbtn{align-self:center;border:1px solid var(--accent);background:transparent;color:var(--accent);font:600 .8rem var(--f-body);padding:8px 12px;border-radius:9px;cursor:pointer}
+.hudbtn.on{background:var(--accent);color:var(--accent-ink)}
+.hud-nums{align-items:flex-end;flex-wrap:wrap}
+.pcats{display:flex;flex-wrap:wrap;gap:6px}
+.pcat{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--raise);color:var(--fg);border-radius:999px;padding:5px 11px;font:600 .75rem var(--f-body);cursor:pointer}
+.pcat i{width:12px;height:12px;border-radius:50%;background:var(--bc);display:block}
+.pcat[aria-pressed="true"]{border-color:var(--bc);box-shadow:inset 0 0 0 1px var(--bc)}
+#pPal{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
+.ptitle{font:600 .85rem var(--f-display);margin-bottom:6px}.ptitle small{display:block;font:400 .72rem var(--f-body);color:var(--muted)}
+#pProg{background-color:var(--bg);background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:18px 18px;border:1px solid var(--line);border-radius:10px;padding:10px;max-height:560px;overflow:auto}
+.blk{background:var(--bc);border:1px solid var(--bd);border-radius:6px;color:#fff;font:600 .8rem var(--f-body);position:relative;text-shadow:0 1px 1px rgba(0,0,0,.18)}
+.blk.pal{display:block;width:100%;text-align:right;cursor:pointer;padding:0}
+.blk.pal:hover{filter:brightness(1.08)}
+.btop{display:flex;align-items:center;gap:6px;padding:6px 8px;min-height:38px}
+.bh{display:flex;flex-wrap:wrap;align-items:center;gap:5px;flex:1;min-width:0;line-height:1.7}
+.bf{background:#fff;color:#2f3640;border:0;border-radius:999px;padding:3px 9px;font:600 .78rem var(--f-body);max-width:170px;text-shadow:none}
+input.bf[type=number]{width:64px}input.bf[type=text]{width:110px}
+.bf.ghost{display:inline-block;min-width:26px;text-align:center}
+.bcond{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;background:rgba(0,0,0,.16);border-radius:999px;padding:3px}
+.btools{display:flex;gap:2px;flex:none}.btools button{background:rgba(0,0,0,.22);border:0;color:#fff;width:24px;height:24px;border-radius:5px;cursor:pointer;font-size:.75rem}
+.cblk{background:transparent;border:0}.cblk>.btop{background:var(--bc);border:1px solid var(--bd);border-radius:6px 6px 0 0}
+.binner{border-inline-start:16px solid var(--bc);padding:2px 6px 2px 0;min-height:14px}.binner.mini{min-height:10px}
+.belse{background:var(--bc);min-height:28px;padding:4px 10px;border-inline-start:1px solid var(--bd)}
+.bfoot{height:14px;background:var(--bc);border:1px solid var(--bd);border-top:0;border-radius:0 0 6px 6px}
+.hat>.btop{border-radius:16px 16px 6px 6px}
+.slot{display:block;width:100%;height:9px;border:0;background:transparent;cursor:pointer;border-radius:4px;padding:0;font:600 .7rem var(--f-body);color:var(--accent-ink)}
+.slot:hover{background:rgba(243,178,48,.35)}.slot.on{height:22px;background:var(--accent)}
+.blk.run>.btop{outline:3px solid #ffffff;outline-offset:1px;box-shadow:0 0 14px rgba(255,255,255,.6)}
+
+.del{display:inline-block;margin-top:4px;font-size:.7rem;color:var(--bad);border:1px solid currentColor;border-radius:5px;padding:0 6px;cursor:pointer}
+.menu{position:fixed;inset:0;z-index:50;background:rgba(10,12,15,.9);overflow-y:auto;padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(16px,env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mcard{max-width:1060px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 18px 0}
+.mtop{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.mstep{margin-top:18px}
+.mstep h2{font-family:var(--f-display);font-size:1.05rem;margin:0 0 10px;display:flex;gap:10px;align-items:center;font-weight:600}
+.mstep h2 b{width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:inline-flex;align-items:center;justify-content:center;font-family:var(--f-mono);font-size:.85rem;flex:none}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.mgrid.arn{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.gen{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;background:var(--raise);border:1px dashed var(--line);border-radius:10px;padding:10px}
+.gen b{font-size:.82rem;flex:1 1 100%}
+.gen input{flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit}
+.gen .pick{flex:1 1 100%}
+.mcols{max-width:420px}
+.mfoot{position:sticky;bottom:0;background:var(--panel);padding:14px 0 16px;margin-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.mfoot .btn{padding:12px 28px;font-size:1rem}
+.tb.main{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.tb:active,.tb.down{transform:scale(.94);filter:brightness(1.2)}
+.banner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(14,17,21,.72);padding:16px}
+.banner .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 24px;max-width:380px;text-align:center}
+.banner h3{font-family:var(--f-display);margin:0 0 6px;font-size:1.3rem}
+.banner p{margin:0 0 14px;color:var(--muted)}
+.ports{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media(min-width:760px){.ports{grid-template-columns:repeat(8,minmax(0,1fr))}}
+.port{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+.port .pn{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:.72rem;color:var(--muted)}
+.port .pn b{font-family:var(--f-mono);color:var(--fg);background:var(--raise);border-radius:5px;padding:0 6px;font-size:.75rem}
+.port .pv{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:1rem;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
+.port .pv .sw{width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.3);flex:none}
+.port .ps{font-size:.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+aside{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.sec h3{font-family:var(--f-display);font-size:.95rem;margin:0 0 10px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sec h3 small{font-family:var(--f-body);color:var(--muted);font-weight:400;font-size:.75rem}
+.robots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(min-width:600px) and (max-width:1039px){.robots{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.rc{background:var(--raise);border:1.5px solid transparent;border-radius:10px;padding:6px 8px 8px;color:var(--fg);text-align:right;cursor:pointer;font:inherit;min-width:0}
+.rc canvas{width:100%;height:70px;display:block}
+.rc b{display:block;font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc span{display:block;font-size:.7rem;color:var(--muted);line-height:1.35}
+.rc[aria-pressed="true"]{border-color:var(--accent);background:#2a2516}
+.colors{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.cs{aspect-ratio:1;max-width:100%;border-radius:8px;border:2px solid rgba(255,255,255,.12);cursor:pointer;position:relative;padding:0}
+.cs[aria-pressed="true"]{outline:2.5px solid var(--accent);outline-offset:2px}
+.colname{margin-top:8px;font-size:.78rem;color:var(--muted)}
+.arenas{display:flex;flex-direction:column;gap:6px}
+.ar{display:flex;align-items:center;gap:10px;background:var(--raise);border:1.5px solid transparent;border-radius:10px;padding:8px 10px;color:var(--fg);font:inherit;text-align:right;cursor:pointer}
+.ar canvas{width:64px;height:31px;border-radius:4px;flex:none}
+.ar b{font-size:.85rem;font-weight:600;display:block}
+.ar span{font-size:.72rem;color:var(--muted)}
+.ar[aria-pressed="true"]{border-color:var(--accent);background:#2a2516}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row label{font-size:.85rem}
+.seg{display:inline-flex;background:var(--raise);border-radius:8px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--muted);font:500 .78rem var(--f-body);padding:5px 10px;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+input[type=range]{accent-color:var(--accent);width:130px}
+.rv{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);min-width:44px;text-align:left;font-variant-numeric:tabular-nums}
+.btn{border:0;background:var(--accent);color:var(--accent-ink);font:600 .9rem var(--f-body);padding:9px 18px;border-radius:9px;cursor:pointer}
+.btn.ghost{background:var(--raise);color:var(--fg)}
+.bar{display:flex;gap:8px;flex-wrap:wrap}
+.keys{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;font-size:.8rem;align-items:center}
+.keys kbd{font-family:var(--f-mono);font-size:.72rem;background:var(--raise);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;white-space:nowrap;justify-self:start}
+.keys span{color:var(--muted)}
+.note{font-size:.75rem;color:var(--muted);margin:10px 0 0}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app" dir="rtl">
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>محاكي <span>EV3</span></h1>
+        <p class="tag">روبوتات وحلبات EV3 · مستشعرات تقرأ مثل الحقيقية</p>
+      </div>
+    </div>
+    <div class="bar" style="align-items:center"><div class="chip" id="padChip"><i></i><span id="padTxt">يد التحكم: غير متصلة</span></div><button class="btn" id="btnMenu" type="button">القائمة الرئيسية</button></div>
+  </header>
+
+  <div class="layout">
+    <section class="stage">
+      <div class="hud">
+        <div style="min-width:0">
+          <h2 id="hudTitle">—</h2>
+          <p id="hudHint"></p>
+        </div>
+        <div class="hud-nums">
+          <div class="num"><small id="hudL1">الوقت</small><b id="hudV1">0:00.0</b></div>
+          <div class="num"><small id="hudL2">النقاط</small><b id="hudV2">0</b></div>
+          <button class="hudbtn" id="pRunHud" type="button">▶ تشغيل البرنامج</button>
+        </div>
+      </div>
+      <div class="wrap" id="wrap">
+        <canvas id="cv" aria-label="ساحة المحاكاة ثنائية الأبعاد" hidden></canvas>
+        <canvas id="gl" aria-label="ساحة المحاكاة ثلاثية الأبعاد"></canvas>
+        <div class="ov" id="ov" hidden></div>
+        <div class="camhint" id="camHint"></div>
+        <div class="toast" id="toast" role="status" hidden></div>
+        <div class="touch" id="touch" hidden>
+          <div class="stick l" id="stickL"><div class="lbl" id="stickLlbl">قيادة</div><div class="knob"></div></div>
+          <div class="stick r" id="stickR" hidden><div class="lbl">المحرك C</div><div class="knob"></div></div>
+          <div class="tbtns">
+            <button class="tb main" id="tbTool" type="button">أداة</button>
+            <button class="tb" id="tbBrake" type="button">فرامل</button>
+            <button class="tb" id="tbAuto" type="button">تتبع آلي</button>
+            <button class="tb" id="tbReset" type="button">إعادة</button>
+          </div>
+        </div>
+        <div class="banner" id="banner" hidden>
+          <div class="card">
+            <h3 id="bnT"></h3>
+            <p id="bnP"></p>
+            <button class="btn" id="bnB" type="button">العب مرة أخرى</button>
+          </div>
+        </div>
+      </div>
+      <div class="ports" id="ports"></div>
+    </section>
+
+    <aside>
+      <nav class="ptabs" id="ptabs" aria-label="أقسام اللوحة">
+        <button type="button" data-pane="robot"><i>◧</i>الروبوت</button>
+        <button type="button" data-pane="arena"><i>▦</i>الحلبة</button>
+        <button type="button" data-pane="prog"><i>❮❯</i>البرمجة</button>
+        <button type="button" data-pane="ai"><i>✦</i>المساعد</button>
+        <button type="button" data-pane="set"><i>⚙</i>الإعدادات</button>
+        <button type="button" data-pane="pad"><i>◉</i>يد التحكم</button>
+        <button type="button" data-pane="help"><i>?</i>الاستخدام</button>
+        <button type="button" id="ptMenu"><i>☰</i>القائمة</button>
+      </nav>
+      <div class="sec" data-pane="robot">
+        <h3>الروبوت <small id="robotSub"></small></h3>
+        <div class="robots" id="robots"></div>
+      </div>
+      <div class="sec" data-pane="robot">
+        <h3>لون الهيكل</h3>
+        <div class="colors" id="colors"></div>
+        <div class="colname" id="colName"></div>
+      </div>
+      <div class="sec" data-pane="arena">
+        <h3>الحلبة <small>بمقاسات حقيقية بالملم</small></h3>
+        <div class="arenas" id="arenas"></div>
+      </div>
+      <div class="sec" id="progSec" data-pane="prog">
+        <h3>البرمجة بالكتل <small id="progStyleLbl"></small></h3>
+        <div class="seg" id="segPStyle"><button type="button" data-v="spike">SPIKE</button><button type="button" data-v="ev3">EV3 Classroom</button></div>
+        <div class="seg" id="segPMode" style="margin-top:8px"><button type="button" data-v="blocks">الكتل</button><button type="button" data-v="py">بايثون</button></div>
+        <div id="blkPane">
+        <div class="pcats" id="pCats" style="margin-top:10px"></div>
+        <div id="pPal"></div>
+        <div class="ptitle">برنامجك <small>اضغط كتلة من الأعلى لإضافتها عند الشريط الأصفر، واضغط بين الكتل لتغيير مكان الإضافة</small></div>
+        <div id="pProg"></div>
+        <div class="bar" style="margin-top:10px">
+          <button class="btn" id="pRun" type="button">تشغيل ▶</button>
+          <button class="btn ghost" id="pEx" type="button">مثال جاهز</button>
+          <button class="btn ghost" id="pClear" type="button">مسح البرنامج</button>
+        </div>
+        </div>
+        <div id="pyPane" hidden>
+          <div class="pyhead"><span>بايثون بصيغة Pybricks (EV3 وSPIKE)</span><span id="pyWords" class="pyw"></span></div>
+          <textarea id="pyCode" dir="ltr" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" maxlength="60000" aria-label="كود بايثون"></textarea>
+          <div class="bar" style="margin-top:8px">
+            <button class="btn" id="pyRun" type="button">تشغيل ▶</button>
+            <button class="btn ghost" id="pyCheck" type="button">تحقّق من الكود</button>
+            <button class="btn ghost" id="pyEx" type="button">مثال جاهز</button>
+          </div>
+          <p class="pymsg" id="pyMsg" hidden></p>
+          <pre class="pyout" id="pyOut" dir="ltr" hidden></pre>
+          <details class="pyref"><summary>الأوامر المدعومة</summary>
+<pre dir="ltr">robot = DriveBase(left, right, wheel_diameter=56, axle_track=112)
+robot.settings(straight_speed=200, turn_rate=120)
+robot.straight(mm)    robot.turn(deg)    robot.curve(r, deg)
+robot.drive(speed, turn_rate)   robot.stop()
+robot.distance()      robot.angle()      robot.reset()
+claw.run_angle(speed, deg)   claw.run_until_stalled(speed)
+claw.run_time(speed, ms)     claw.run(speed)
+line.color() == Color.BLACK  line.reflection()
+eyes.distance()  # mm
+gyro.angle()  hub.imu.heading()  touch.pressed()
+ev3.speaker.beep()  ev3.screen.print("..")  hub.display.text("..")
+wait(ms)   StopWatch().time()   print(...)
+follow_line(2)  follow_line_distance(300)   # أوامر خاصة بالمحاكي
+if / elif / else / while / for x in range() / def / break</pre>
+          </details>
+        </div>
+        <p class="note">التشغيل يعيد الروبوت إلى مربع الانطلاق ويقود ذاتياً بدون تحكم، مثل المسابقة. «تتبّع الخط حتى التقاطع» يعدّ التقاطعات بمستشعرين جانبيين افتراضيين.</p>
+      </div>
+      <div class="sec" id="aiSec" data-pane="ai">
+        <h3>مساعد الروبوت الذكي <small id="aiMode">جاري التحقق…</small></h3>
+        <div class="seg" id="aiCtx"><button type="button" data-v="sim" aria-pressed="true">مشكلة في المحاكي</button><button type="button" data-v="real" aria-pressed="false">روبوتي الحقيقي</button></div>
+        <div class="chips" id="aiChips"></div>
+        <div class="chat" id="aiLog" aria-live="polite"></div>
+        <form id="aiForm">
+          <textarea id="aiIn" rows="2" placeholder="صف المشكلة: ماذا يحدث، وماذا تتوقع أن يحدث، وأي منفذ أو مستشعر تستخدم"></textarea>
+          <div class="bar" style="margin-top:8px;align-items:center">
+            <button class="btn" id="aiSend" type="submit">اسأل</button>
+            <button class="btn ghost" id="aiStop" type="button" hidden>إيقاف</button>
+            <label class="btn ghost" id="aiPicL" hidden>صورة الروبوت<input type="file" id="aiPic" accept="image/*" hidden></label>
+            <button class="btn ghost" id="aiClear" type="button">محادثة جديدة</button>
+            <span class="pick" id="aiPicN"></span>
+          </div>
+        </form>
+        <p class="note" id="aiNote"></p>
+      </div>
+      <div class="sec" data-pane="set">
+        <h3>الإعدادات</h3>
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="gen" aria-selected="true">عام</button>
+          <button type="button" role="tab" data-tab="tch" aria-selected="false">أزرار اللمس</button>
+        </div>
+        <div id="tab-tch" hidden></div>
+        <div id="tab-gen">
+        <div class="row"><label>نمط القيادة</label><div class="seg" id="segDrive"><button type="button" data-v="screen">نسبة للشاشة</button><button type="button" data-v="arcade">نسبة للروبوت</button><button type="button" data-v="tank">دبابة B/C</button></div></div>
+        <div class="row"><label>العرض</label><div class="seg" id="segView"><button type="button" data-v="3d">ثلاثي الأبعاد</button><button type="button" data-v="2d">ثنائي من الأعلى</button></div></div>
+        <div class="row" id="rowCam3"><label>كاميرا 3D</label><div class="seg" id="segCam3"><button type="button" data-v="fixed">ثابتة</button><button type="button" data-v="chase">مطاردة</button><button type="button" data-v="fpv">أمامية</button><button type="button" data-v="orbit">حرة</button><button type="button" data-v="top">علوية</button></div></div>
+        <div class="row" id="rowCam2"><label>الكاميرا</label><div class="seg" id="segCam"><button type="button" data-v="auto">تلقائي</button><button type="button" data-v="fit">كاملة</button><button type="button" data-v="follow">متابعة</button></div></div>
+        <div class="row"><label>أزرار اللمس</label><div class="seg" id="segTouch"><button type="button" data-v="auto">تلقائي</button><button type="button" data-v="on">إظهار</button><button type="button" data-v="off">إخفاء</button></div></div>
+        <div class="row"><label for="spd">السرعة القصوى</label><div style="display:flex;gap:8px;align-items:center"><input type="range" id="spd" min="30" max="100" step="5"><span class="rv" id="spdV"></span></div></div>
+        <div class="row"><label for="kp">معامل Kp للتتبع</label><div style="display:flex;gap:8px;align-items:center"><input type="range" id="kp" min="5" max="60" step="1"><span class="rv" id="kpV"></span></div></div>
+        <div class="row"><label>أثر الحركة</label><div class="seg" id="segTrail"><button type="button" data-v="1">تشغيل</button><button type="button" data-v="0">إيقاف</button></div></div>
+        <div class="row"><label>قوة خصم السومو</label><div class="seg" id="segOpp"><button type="button" data-v="0">سهل</button><button type="button" data-v="1">متوسط</button><button type="button" data-v="2">صعب</button></div></div>
+        <div class="row"><span></span><div class="bar"><button class="btn ghost" id="btnReset" type="button">إعادة الحلبة</button></div></div>
+        </div>
+      </div>
+      <div class="sec" data-pane="pad">
+        <h3>يد التحكم <small>PlayStation و Xbox</small></h3>
+        <p class="note" style="margin-top:0">وصّل اليد عبر USB أو Bluetooth، ثم اضغط أي زر فيها ليتعرّف عليها المتصفح. تهتز اليد عند الاصطدام إذا كانت تدعم الاهتزاز. داخل صفحة Claude يمنع المتصفح الوصول لليد؛ استخدم التطبيق أو ملف HTML.</p>
+        <div id="tab-pad"></div>
+      </div>
+      <div class="sec" data-pane="help">
+        <h3>طريقة الاستخدام</h3>
+        <ol class="howto">
+          <li><b>اختر روبوتك وحلبتك</b> من «القائمة الرئيسية» أو من زرّي «الروبوت» و«الحلبة» هنا.</li>
+          <li><b>قُد الروبوت</b> بلوحة المفاتيح أو اللمس أو يد التحكم. الاتجاه يكون بالنسبة للشاشة، ويمكن تغييره من «الإعدادات».</li>
+          <li><b>برمج الروبوت</b> من «البرمجة» بالكتل أو ببايثون، ثم اضغط «تشغيل» ليقود ذاتياً من مربع الانطلاق.</li>
+          <li><b>راقب المنافذ</b> تحت الساحة: قدرة المحركات وقراءات المستشعرات مباشرة.</li>
+          <li><b>واجهت مشكلة؟</b> اسأل «المساعد» عن روبوتك الحقيقي أو عن المحاكي.</li>
+        </ol>
+        <h3 style="margin-top:14px">الاختصارات <small id="padKind">لوحة المفاتيح ويد التحكم</small></h3>
+        <div class="keys" id="keys"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+
+<div class="menu" id="menu" dir="rtl" hidden>
+  <div class="mcard">
+    <div class="mtop">
+      <div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>محاكي <span>EV3</span></h1><p class="tag">اختر روبوتك وحلبتك، أو صمّمهما بالذكاء الاصطناعي</p></div></div>
+    </div>
+    <div class="mstep">
+      <h2><b>1</b>اختر الروبوت</h2>
+      <div class="mgrid" id="mRobots"></div>
+      <div class="gen"><b>أنشئ روبوتاً بالذكاء الاصطناعي</b><input id="genR" placeholder="مثال: روبوت مجنزر ثقيل بمخلب وعجلات كبيرة" aria-label="وصف الروبوت"><button class="btn" id="genRB" type="button">أنشئ الروبوت</button><span class="pick" id="genRS"></span></div>
+    </div>
+    <div class="mstep">
+      <h2><b>2</b>اختر الحلبة</h2>
+      <div class="mgrid arn" id="mArenas"></div>
+      <div class="gen"><b>أنشئ حلبة بالذكاء الاصطناعي</b><input id="genA" placeholder="مثال: متاهة بثلاثة مكعبات حمراء وخط أسود متعرج" aria-label="وصف الحلبة"><button class="btn" id="genAB" type="button">أنشئ الحلبة</button><span class="pick" id="genAS"></span></div>
+    </div>
+    <div class="mstep mcols">
+      <h2><b>3</b>لون الهيكل</h2>
+      <div class="colors" id="mColors"></div>
+      <div class="colname" id="mColName"></div>
+    </div>
+    <div class="mfoot"><span class="pick" id="mGenNote"></span><button class="btn" id="mStart" type="button">ابدأ المحاكاة</button></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+let W=2362,H=1143;const DEF_W=2362,DEF_H=1143,MAT_S=0.5,CUBE_R=25;
+function setSize(def){const z=(def&&def.size)||[DEF_W,DEF_H];W=z[0];H=z[1]}
+
+/* ---------- settings ---------- */
+const S={view:'3d',cam3:'fixed',model:'gripper',color:'#c91a09',arena:'eco',drive:'arcade',cam:'auto',touch:'auto',speed:100,kp:22,trail:1,opp:1};
+const TC0={stick:124,btn:58,op:85,sx:14,sy:14,bx:14,by:14,lefty:0,row:0};
+const GPMAP0={tool:0,brake:1,auto:2,cam:3,robotm:4,robotp:5,arena:8,reset:9};
+const GP0={dz:12,sens:80,curve:1,invY:0,steer:'left',thr:'both',vib:1,glyph:'auto'};
+S.tc={...TC0};S.gp={...GP0,map:{...GPMAP0}};
+try{const L=JSON.parse(localStorage.getItem('ev3sim-v1')||'{}');const tc=L.tc,gp=L.gp;delete L.tc;delete L.gp;Object.assign(S,L);
+ if(tc)Object.assign(S.tc,tc);if(gp){const m=gp.map;delete gp.map;Object.assign(S.gp,gp);if(m)Object.assign(S.gp.map,m)}}catch(e){}
+const save=()=>{try{localStorage.setItem('ev3sim-v1',JSON.stringify(S))}catch(e){}};
+
+/* ---------- EV3 colour sensor palette ---------- */
+const EV3C=[
+ {k:'black',ar:'أسود',rgb:[24,24,26]},{k:'blue',ar:'أزرق',rgb:[30,96,200]},{k:'green',ar:'أخضر',rgb:[34,150,72]},
+ {k:'yellow',ar:'أصفر',rgb:[245,205,40]},{k:'red',ar:'أحمر',rgb:[214,44,40]},{k:'white',ar:'أبيض',rgb:[246,246,244]},{k:'brown',ar:'بني',rgb:[122,78,42]}];
+const NONE={k:'none',ar:'لا لون',rgb:[90,90,90]};
+const css=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+const CUBEC={red:'#d62c28',blue:'#1e60c8',green:'#229648',yellow:'#f5cd28'};
+
+const BODY=[['#c91a09','أحمر'],['#0055bf','أزرق'],['#f2cd37','أصفر'],['#237841','أخضر'],['#f4f4f4','أبيض'],['#2a2a2a','أسود'],
+ ['#fe8a18','برتقالي'],['#bbe90b','ليموني'],['#36aebf','سماوي'],['#81007b','بنفسجي'],['#a0a5a9','رمادي'],['#e4adc8','وردي']];
+
+/* ---------- robot models (mm, x = forward) ---------- */
+const MODELS={
+ base:{ar:'قاعدة القيادة',sub:'قاعدة Educator الأساسية',w:126,back:-78,front:82,track:112,D:56,sensorX:76,usX:52,brick:[-66,100],maxV:450,acc:4,mass:1,turnK:.55,kind:'wheels',tool:'horn'},
+ gripper:{ar:'حامل المكعبات',sub:'مخلب يمسك المكعب وينقله',w:126,back:-78,front:74,track:112,D:56,sensorX:58,usX:40,brick:[-70,96],maxV:400,acc:4,mass:1.1,turnK:.55,kind:'wheels',tool:'claw',holdX:104},
+ forklift:{ar:'الرافعة الشوكية',sub:'شوكتان ترفعان المكعب',w:130,back:-86,front:64,track:116,D:56,sensorX:50,usX:30,brick:[-78,96],maxV:360,acc:3.5,mass:1.3,turnK:.5,kind:'wheels',tool:'lift',holdX:108},
+ bulldozer:{ar:'الجرّافة',sub:'شفرة عريضة تدفع عدة مكعبات',w:176,back:-82,front:102,track:120,D:56,sensorX:72,usX:54,brick:[-74,98],maxV:330,acc:3,mass:1.8,turnK:.5,kind:'wheels',tool:'horn'},
+ sumo:{ar:'روبوت السومو',sub:'ثقيل بإسفين أمامي للدفع',w:150,back:-82,front:88,track:130,D:56,sensorX:48,usX:26,brick:[-76,94],maxV:380,acc:3.5,mass:2.2,turnK:.5,kind:'wheels',tool:'horn'},
+ track3r:{ar:'المجنزرة TRACK3R',sub:'جنازير لكل الأسطح',w:140,back:-84,front:84,track:106,D:40,sensorX:72,usX:50,brick:[-62,98],maxV:300,acc:3,mass:1.6,turnK:.45,kind:'tracks',tool:'horn'},
+ liner:{ar:'متتبع الخط',sub:'مستشعر لون على ذراع أمامية',w:118,back:-70,front:66,track:104,D:56,sensorX:100,usX:42,brick:[-62,92],maxV:420,acc:4,mass:.95,turnK:.55,kind:'wheels',tool:'auto'},
+ sp_base:{ar:'قاعدة SPIKE المتقدمة',sub:'Advanced Driving Base',hub:'spike',w:128,back:-70,front:78,track:112,D:56,sensorX:70,usX:52,brick:[-60,88],maxV:480,acc:4.5,mass:.9,turnK:.55,kind:'wheels',tool:'horn'},
+ sp_claw:{ar:'حامل مكعبات SPIKE',sub:'مخلب بمحرك على المنفذ A',hub:'spike',w:128,back:-70,front:74,track:112,D:56,sensorX:56,usX:36,brick:[-64,88],maxV:460,acc:4.5,mass:1,turnK:.55,kind:'wheels',tool:'claw',holdX:104},
+ sp_comp:{ar:'SPIKE جاهز للمسابقة',sub:'Competition Ready بذراع رفع',hub:'spike',w:136,back:-76,front:80,track:120,D:56,sensorX:66,usX:44,brick:[-66,88],maxV:460,acc:4.5,mass:1.1,turnK:.55,kind:'wheels',tool:'lift',holdX:120},
+ team:{ar:'روبوت الفريق',sub:'مخلب سلسلة وبريك خلفي',w:140,back:-118,front:96,track:124,D:56,sensorX:82,usX:58,brick:[-118,100],maxV:400,acc:4,mass:1.25,turnK:.55,kind:'wheels',tool:'claw',holdX:126,chain:true},
+ gyro:{ar:'جايرو بوي',sub:'يوازن على عجلتين',w:110,back:-30,front:30,track:92,D:43,sensorX:26,usX:2,brick:[-14,28],maxV:360,acc:5,mass:.8,turnK:.7,kind:'balance',tool:'horn'}
+};
+let MKEYS=Object.keys(MODELS);
+for(const k of MKEYS){const m=MODELS[k];m.rc=Math.hypot(Math.max(m.front,-m.back),m.w/2)*.8}
+const TOOLTXT={claw:['أغلق المخلب','افتح المخلب'],lift:['ارفع الشوكة','أنزل الشوكة'],auto:['تتبع آلي','إيقاف التتبع'],horn:['بوق','بوق']};
+
+/* ---------- helpers ---------- */
+function shade(hex,p){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;
+ if(p<0){r*=1+p;g*=1+p;b*=1+p}else{r+=(255-r)*p;g+=(255-g)*p;b+=(255-b)*p}return `rgb(${r|0},${g|0},${b|0})`}
+function rr(c,x,y,w,h,r){c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h)}
+const R=(x,y,w,h,col)=>({x,y,w,h,col});
+const cb=(c,x,y)=>({c,x,y,held:false});
+const angDiff=(a,b)=>{let d=a-b;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d};
+const fmt=t=>{t=Math.max(0,t);const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(1)};
+const BORDER=()=>[R(-40,-40,W+80,40),R(-40,H,W+80,40),R(-40,0,40,H),R(W,0,40,H)];
+function label(g,txt,x,y,size,col,align){g.save();g.direction='rtl';g.font=`600 ${size}px "Readex Pro","IBM Plex Sans Arabic",sans-serif`;g.fillStyle=col;g.textAlign=align||'center';g.textBaseline='middle';g.fillText(txt,x,y);g.restore()}
+
+/* ---------- arenas ---------- */
+function matBase(g,bg){g.fillStyle=bg;g.fillRect(0,0,W,H)}
+function grid(g,col,col2){for(let x=0;x<=W;x+=100){g.strokeStyle=x%500?col:col2;g.lineWidth=x%500?2:3;g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke()}
+ for(let y=0;y<=H;y+=100){g.strokeStyle=y%500?col:col2;g.lineWidth=y%500?2:3;g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke()}}
+function linePath(g){g.beginPath();g.moveTo(500,200);g.lineTo(1600,200);g.bezierCurveTo(1950,200,2100,300,2100,560);
+ g.bezierCurveTo(2100,820,1950,920,1600,920);g.lineTo(1300,920);g.bezierCurveTo(1150,920,1100,700,900,700);
+ g.bezierCurveTo(700,700,700,920,500,920);g.bezierCurveTo(150,920,150,200,500,200);g.closePath()}
+function genMaze(cols,rows,seed){let s=seed|0;const rnd=()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+ const E=[],SS=[],V=[];for(let r=0;r<rows;r++){E.push(Array(cols).fill(true));SS.push(Array(cols).fill(true));V.push(Array(cols).fill(false))}
+ const st=[[0,0]];V[0][0]=true;
+ while(st.length){const [c,r]=st[st.length-1];const nb=[];
+  if(c>0&&!V[r][c-1])nb.push([c-1,r,'W']);if(c<cols-1&&!V[r][c+1])nb.push([c+1,r,'E']);
+  if(r>0&&!V[r-1][c])nb.push([c,r-1,'N']);if(r<rows-1&&!V[r+1][c])nb.push([c,r+1,'S']);
+  if(!nb.length){st.pop();continue}
+  const [nc,nr,d]=nb[Math.floor(rnd()*nb.length)];
+  if(d==='E')E[r][c]=false;if(d==='W')E[r][nc]=false;if(d==='S')SS[r][c]=false;if(d==='N')SS[nr][c]=false;
+  V[nr][nc]=true;st.push([nc,nr])}
+ return {E,S:SS}}
+
+const ARENAS={
+ free:{ar:'ساحة التدريب',sub:'حركة حرة واختبار المستشعرات',mode:'free',
+  hint:'قُد بحرية وجرّب المستشعرات. الشرائط السفلية هي الألوان السبعة التي يميّزها مستشعر EV3.',
+  build(){return{walls:[...BORDER(),R(1560,250,50,330),R(1760,760,340,50)],
+   cubes:[cb('red',1150,260),cb('blue',1260,380),cb('green',1150,520),cb('yellow',1300,640)],start:{x:330,y:420,a:0},
+   mat(g){matBase(g,'#f2f1ec');grid(g,'#e2e0d8','#cbc8bd');
+    EV3C.forEach((c,i)=>{const x=250+i*250;g.fillStyle=css(c.rgb);g.fillRect(x,900,220,170);g.strokeStyle='#bdb9ad';g.lineWidth=3;g.strokeRect(x,900,220,170);label(g,c.ar,x+110,865,34,'#6e6b62')});
+    g.strokeStyle='#9aa0a6';g.setLineDash([20,14]);g.lineWidth=4;g.strokeRect(180,280,300,280);g.setLineDash([]);label(g,'منطقة البداية',330,250,30,'#8a877d')}}}},
+ line:{ar:'تتبع الخط',sub:'مسار أسود بعرض 20 مم',mode:'laps',
+  hint:'اتبع الخط الأسود. اضغط «تتبع آلي» ليقود الروبوت نفسه بمتحكم تناسبي على حافة الخط.',
+  build(){return{walls:BORDER(),cubes:[],start:{x:660,y:190,a:0},
+   cps:[R(1950,450,320,260),R(110,420,320,280),R(560,90,60,220)],
+   mat(g){matBase(g,'#f6f5f0');g.strokeStyle='#18181a';g.lineWidth=20;g.lineJoin='round';linePath(g);g.stroke();
+    g.fillStyle='#d62c28';g.fillRect(580,135,20,40);g.fillRect(580,225,20,40);
+    g.fillStyle='#229648';g.fillRect(2160,520,60,80);g.fillStyle='#1e60c8';g.fillRect(140,520,60,80);
+    label(g,'البداية / النهاية',590,90,30,'#77746b');label(g,'مسار تتبع الخط — عرض الخط 20 مم',1181,560,40,'#c9c6bb')}}}},
+ cubes:{ar:'نقل المكعبات',sub:'مهمة 120 ثانية',mode:'cubes',
+  hint:'انقل كل مكعب إلى المنطقة التي بلونه. كل مكعب في مكانه الصحيح = 20 نقطة. يبدأ العدّ عند أول حركة.',
+  build(){const zones=[{c:'red',...R(2060,40,260,230)},{c:'blue',...R(2060,320,260,230)},{c:'green',...R(2060,600,260,230)},{c:'yellow',...R(2060,880,260,230)}];
+   return{walls:BORDER(),zones,start:{x:190,y:570,a:0},
+   cubes:[cb('red',820,300),cb('blue',1040,430),cb('green',1260,300),cb('yellow',1480,430),cb('green',820,840),cb('yellow',1040,710),cb('red',1260,840),cb('blue',1480,710)],
+   mat(g){matBase(g,'#eef0f2');g.fillStyle='#d8dde2';g.fillRect(40,400,300,340);label(g,'البداية',190,370,32,'#7d848b');
+    g.strokeStyle='#18181a';g.lineWidth=20;g.beginPath();g.moveTo(340,570);g.lineTo(1960,570);g.moveTo(1960,155);g.lineTo(1960,995);g.stroke();
+    for(const z of zones){g.fillStyle=CUBEC[z.c];g.fillRect(z.x,z.y,z.w,z.h);g.strokeStyle='#ffffff';g.lineWidth=10;g.strokeRect(z.x+5,z.y+5,z.w-10,z.h-10)}
+    for(const c of [[820,300],[1040,430],[1260,300],[1480,430],[820,840],[1040,710],[1260,840],[1480,710]]){g.strokeStyle='#b9c0c7';g.lineWidth=3;g.strokeRect(c[0]-35,c[1]-35,70,70)}}}}},
+ maze:{ar:'المتاهة',sub:'تتغيّر مع كل إعادة',mode:'maze',
+  hint:'اخرج من المتاهة إلى المربع الأخضر في الزاوية البعيدة. استخدم المستشعر فوق الصوتي لقياس المسافة للجدار.',
+  build(){const cols=8,rows=4,cw=W/cols,ch=H/rows,t=18,mz=genMaze(cols,rows,(Math.random()*1e9)|0),walls=BORDER();
+   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    if(c<cols-1&&mz.E[r][c])walls.push(R((c+1)*cw-t/2,r*ch-t/2,t,ch+t,'wood'));
+    if(r<rows-1&&mz.S[r][c])walls.push(R(c*cw-t/2,(r+1)*ch-t/2,cw+t,t,'wood'))}
+   const goal=R(7*cw+30,3*ch+30,cw-60,ch-60);
+   return{walls,cubes:[],goal,start:{x:cw/2,y:ch/2,a:0},
+    mat(g){matBase(g,'#f4f3ee');grid(g,'#e6e4dc','#e6e4dc');g.fillStyle='#229648';g.fillRect(goal.x,goal.y,goal.w,goal.h);
+     g.fillStyle='#f5cd28';g.fillRect(30,30,cw-60,ch-60);label(g,'النهاية',goal.x+goal.w/2,goal.y+goal.h/2,40,'#ffffff')}}}},
+ race:{ar:'سباق العوائق',sub:'3 لفّات حول الجزيرة',mode:'laps',laps:3,
+  hint:'أكمل 3 لفّات بعكس اتجاه العقارب على الشاشة… بل مع اتجاهها: يميناً في الأعلى ثم نزولاً. تجنّب العوائق.',
+  build(){return{walls:[...BORDER(),R(500,380,1362,383,'grass'),R(1000,0,40,140),R(1450,240,40,140),R(1300,763,40,140),R(800,1003,40,140),R(2200,560,162,40)],
+   cubes:[],start:{x:400,y:190,a:0},cps:[R(1862,500,500,140),R(1000,763,40,380),R(0,500,500,140),R(590,0,40,380)],
+   mat(g){matBase(g,'#5d6268');g.strokeStyle='#f4f4f4';g.lineWidth=8;g.setLineDash([60,50]);g.strokeRect(250,190,1862,763);g.setLineDash([]);
+    for(let i=0;i<10;i++)for(let j=0;j<2;j++){g.fillStyle=(i+j)%2?'#18181a':'#f6f6f4';g.fillRect(590+j*20,i*38,20,38)}
+    label(g,'خط البداية',700,330,30,'#d7dade','left')}}}},
+ sumo:{ar:'حلبة السومو',sub:'قطر 77 سم ضد خصم آلي',mode:'sumo',
+  hint:'ادفع الخصم خارج الحلبة. الحافة البيضاء يكتشفها مستشعر اللون. من يفز بـ3 جولات يربح المباراة.',
+  build(){const ring={x:W/2,y:H/2,r:385};return{walls:[],cubes:[],ring,start:{x:ring.x-175,y:ring.y,a:0},ostart:{x:ring.x+175,y:ring.y,a:Math.PI},
+   mat(g){matBase(g,'#c9b48f');g.strokeStyle='rgba(120,90,50,.18)';g.lineWidth=6;for(let y=20;y<H;y+=60){g.beginPath();g.moveTo(0,y);g.lineTo(W,y+12);g.stroke()}
+    g.fillStyle='#f6f6f4';g.beginPath();g.arc(ring.x,ring.y,ring.r,0,7);g.fill();g.fillStyle='#18181a';g.beginPath();g.arc(ring.x,ring.y,ring.r-25,0,7);g.fill();
+    g.fillStyle='#7a4e2a';g.fillRect(ring.x-70,ring.y-100,20,200);g.fillRect(ring.x+50,ring.y-100,20,200);
+    label(g,'دوهيو — قطر 77 سم',ring.x,ring.y+ring.r+60,36,'#6b5532')}}}},
+ eco:{ar:'التوازن البيئي 2026',sub:'2400 × 1200 مم · فرز المكعبات',mode:'cubes',limit:150,size:[2400,1200],
+  hint:'المسابقة المحلية في عُمان 2026: انطلق من مربع 25 × 25 سم، وتتبّع المحور الأوسط وتفرعاته (90°)، والتقط المكعبات من النهايات الملونة، ثم ضع كل مكعب في منطقة الفرز التي بلونه في الطرف المقابل.',
+  build(){const Wd=2400,Hd=1200,Y=600,segs=[],L=(a,b,c,d)=>segs.push([a,b,c,d]),COL={blue:'#1e60c8',red:'#d62c28',green:'#229648'};
+   L(290,Y,1940,Y);                                              // main spine through the middle
+   for(const x of [520,780,1040,1300,1560,1800])L(x,150,x,1050);   // comb teeth, symmetric on both sides, 90°
+   L(1040,320,1300,320);L(1300,880,1560,880);L(520,880,780,880);   // grid connectors (open maze)
+   L(1940,240,1940,960);for(const y of [240,600,960])L(1940,y,2030,y); // feed lines into the depots
+   const spots=[[520,150,'blue'],[780,1050,'red'],[1040,150,'green'],[1300,1050,'blue'],[1560,150,'red'],[1800,1050,'green']];
+   const ends=[[520,1050],[780,150],[1040,1050],[1300,150],[1560,1050],[1800,150]];
+   const zones=[{c:'blue',x:2030,y:90,w:330,h:300},{c:'red',x:2030,y:450,w:330,h:300},{c:'green',x:2030,y:810,w:330,h:300}];
+   return{walls:BORDER(),zones,start:{x:165,y:Y,a:0},cubes:spots.map(([x,y,c])=>cb(c,x,y)),
+    mat(g){matBase(g,'#f8f8f6');g.strokeStyle='#cfd2d6';g.lineWidth=3;g.strokeRect(20,20,Wd-40,Hd-40);
+     g.strokeStyle='#18181a';g.lineWidth=20;g.lineCap='square';for(const q of segs){g.beginPath();g.moveTo(q[0],q[1]);g.lineTo(q[2],q[3]);g.stroke()}
+     for(const [x,y,c] of spots){g.fillStyle=COL[c];g.fillRect(x-50,y-50,100,100)}
+     g.fillStyle='#18181a';for(const [x,y] of ends)g.fillRect(x-30,y-30,60,60);
+     for(const z of zones){g.fillStyle=COL[z.c];g.fillRect(z.x,z.y,z.w,z.h);g.strokeStyle='#18181a';g.lineWidth=10;g.strokeRect(z.x+5,z.y+5,z.w-10,z.h-10)}
+     g.lineCap='butt';g.lineWidth=20;g.strokeRect(50,485,230,230);
+     label(g,'الانطلاق',165,450,30,'#7d848b');label(g,'الفرز وإعادة التدوير',2195,62,26,'#7d848b');label(g,'تحدي التوازن البيئي · عُمان 2026',1170,1138,30,'#b9bcc0')}}}},
+};
+let AKEYS=Object.keys(ARENAS);
+
+/* ---------- mat canvas & colour sensing ---------- */
+const mat=document.createElement('canvas');mat.width=Math.round(W*MAT_S);mat.height=Math.round(H*MAT_S);
+const mg=mat.getContext('2d',{willReadFrequently:true});let pix=null;
+const MAT_HI=1,matHi=document.createElement('canvas');matHi.width=W*MAT_HI;matHi.height=H*MAT_HI;const hg=matHi.getContext('2d');
+const V3={ok:false};
+function sample(x,y){const px=Math.round(x*MAT_S),py=Math.round(y*MAT_S),mw=mat.width;
+ if(px<2||py<2||px>=mw-2||py>=mat.height-2)return null;let r=0,g=0,b=0;
+ for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const i=((py+dy)*mw+px+dx)*4;r+=pix[i];g+=pix[i+1];b+=pix[i+2]}return[r/25,g/25,b/25]}
+function classify(rgb){if(!rgb)return NONE;const mx=Math.max(...rgb),mn=Math.min(...rgb),lum=.3*rgb[0]+.59*rgb[1]+.11*rgb[2];
+ if(mx-mn<40){if(lum<70)return EV3C[0];if(lum>180)return EV3C[5];return NONE}
+ let best=EV3C[0],bd=1e9;for(const c of EV3C){const d=(c.rgb[0]-rgb[0])**2+(c.rgb[1]-rgb[1])**2+(c.rgb[2]-rgb[2])**2;if(d<bd){bd=d;best=c}}return best}
+
+/* ---------- state ---------- */
+let A,P,O,G,trail=[];
+function newRobot(key,x,y,a,color){return{key,x,y,a,a0:a,pL:0,pR:0,sL:0,sR:0,tool:false,toolA:0,held:null,bump:false,bumpPrev:false,bumpT:0,
+ auto:false,color,dist:0,fallen:false,fallT:0,sense:NONE,refl:0,us:2550,ai:0,hornT:0}}
+const oppColor=()=>S.color==='#0055bf'?'#c91a09':'#0055bf';
+function newGame(){return{t:0,started:false,done:false,score:0,next:0,lapT0:0,laps:[],best:null,phase:'count',cd:3,overT:0,sp:0,so:0,round:1,msg:''}}
+function loadArena(){const def=ARENAS[S.arena];setSize(def);
+ if(mat.width!==Math.round(W*MAT_S)||mat.height!==Math.round(H*MAT_S)){mat.width=Math.round(W*MAT_S);mat.height=Math.round(H*MAT_S);matHi.width=W*MAT_HI;matHi.height=H*MAT_HI}
+ A=def.build();A.def=def;A.key=S.arena;
+ mg.setTransform(MAT_S,0,0,MAT_S,0,0);A.mat(mg);pix=mg.getImageData(0,0,mat.width,mat.height).data;
+ hg.setTransform(MAT_HI,0,0,MAT_HI,0,0);A.mat(hg);if(V3.ok){try{build3DArena()}catch(e){console.error(e);toast('تعذّر بناء الحلبة ثلاثية الأبعاد: '+errText(e))}}
+ G=newGame();placeRobots();$('#banner').hidden=true;updHudStatic()}
+function placeRobots(){const st=A.start;P=newRobot(S.model,st.x,st.y,st.a,S.color);
+ O=A.key==='sumo'?newRobot('sumo',A.ostart.x,A.ostart.y,A.ostart.a,oppColor()):null;trail=[];sense(P);if(O)sense(O)}
+
+/* ---------- collisions ---------- */
+function circRect(o,r,Rc){const cx=clamp(o.x,Rc.x,Rc.x+Rc.w),cy=clamp(o.y,Rc.y,Rc.y+Rc.h);let dx=o.x-cx,dy=o.y-cy,d2=dx*dx+dy*dy;
+ if(d2>=r*r)return null;if(d2<1e-6){const l=o.x-Rc.x,rt=Rc.x+Rc.w-o.x,t=o.y-Rc.y,b=Rc.y+Rc.h-o.y,mn=Math.min(l,rt,t,b);
+  if(mn===l){o.x=Rc.x-r;return{nx:-1,ny:0}}if(mn===rt){o.x=Rc.x+Rc.w+r;return{nx:1,ny:0}}if(mn===t){o.y=Rc.y-r;return{nx:0,ny:-1}}o.y=Rc.y+Rc.h+r;return{nx:0,ny:1}}
+ const d=Math.sqrt(d2);o.x+=dx/d*(r-d);o.y+=dy/d*(r-d);return{nx:dx/d,ny:dy/d}}
+function robotCube(r,c){const m=MODELS[r.key],ca=Math.cos(r.a),sa=Math.sin(r.a),dx=c.x-r.x,dy=c.y-r.y;
+ const lx=dx*ca+dy*sa,ly=-dx*sa+dy*ca,hy=m.w/2,qx=clamp(lx,m.back,m.front),qy=clamp(ly,-hy,hy);
+ const ex=lx-qx,ey=ly-qy,d=Math.hypot(ex,ey);if(d>=CUBE_R)return;let nx,ny,pen;
+ if(d<1e-6){const dF=m.front-lx,dB=lx-m.back,dR=hy-ly,dL=ly+hy,mn=Math.min(dF,dB,dR,dL);
+  if(mn===dF){nx=1;ny=0;pen=dF+CUBE_R}else if(mn===dB){nx=-1;ny=0;pen=dB+CUBE_R}else if(mn===dR){nx=0;ny=1;pen=dR+CUBE_R}else{nx=0;ny=-1;pen=dL+CUBE_R}}
+ else{nx=ex/d;ny=ey/d;pen=CUBE_R-d}
+ c.x+=(nx*ca-ny*sa)*pen;c.y+=(nx*sa+ny*ca)*pen;if(nx>.7)r.bump=true;
+ const back=pen*.12*(1/MODELS[r.key].mass);r.x-=(nx*ca-ny*sa)*back;r.y-=(nx*sa+ny*ca)*back}
+function rayRect(ox,oy,dx,dy,Rc){let t0=0,t1=1e9;
+ for(const [o,d,lo,hi] of [[ox,dx,Rc.x,Rc.x+Rc.w],[oy,dy,Rc.y,Rc.y+Rc.h]]){if(Math.abs(d)<1e-9){if(o<lo||o>hi)return 1e9}else{let a=(lo-o)/d,b=(hi-o)/d;if(a>b)[a,b]=[b,a];t0=Math.max(t0,a);t1=Math.min(t1,b);if(t0>t1)return 1e9}}return t0}
+function rayCirc(ox,oy,dx,dy,cx,cy,r){const fx=ox-cx,fy=oy-cy,b=fx*dx+fy*dy,c=fx*fx+fy*fy-r*r,h=b*b-c;if(h<0)return 1e9;const t=-b-Math.sqrt(h);return t>=0?t:1e9}
+
+/* ---------- input ---------- */
+const KEYS={};
+const stick={L:{x:0,y:0},R:{x:0,y:0}};
+const touchHold={brake:false};
+let pad=null,padType='none',padPrev=[],padBlocked=false;
+/* native controller bridge (Android app): the app forwards controller keys and axes here */
+const NK={},NA={axes:[0,0,0,0],lt:0,rt:0,hx:0,hy:0};let nativeOn=false;
+const KMAP={96:0,23:0,97:1,4:1,99:2,100:3,102:4,103:5,104:6,105:7,109:8,108:9,106:10,107:11,19:12,20:13,21:14,22:15,110:16,98:2,101:3};
+window.__nk=(code,action)=>{nativeOn=true;const i=KMAP[code];if(i!==undefined)NK[i]=action===0};
+window.__np=(x,y,z,rz,lt,rt,hx,hy,gas,brake)=>{nativeOn=true;NA.axes=[x,y,z,rz];NA.lt=Math.max(lt||0,brake||0);NA.rt=Math.max(rt||0,gas||0);NA.hx=hx||0;NA.hy=hy||0};
+function nativePad(){const b=[];for(let i=0;i<18;i++){let v=NK[i]?1:0;
+  if(i===6)v=Math.max(v,NA.lt);if(i===7)v=Math.max(v,NA.rt);if(i===12&&NA.hy<-.5)v=1;if(i===13&&NA.hy>.5)v=1;if(i===14&&NA.hx<-.5)v=1;if(i===15&&NA.hx>.5)v=1;
+  b.push({pressed:v>.5,value:v})}return{id:'native android controller',native:true,connected:true,mapping:'standard',axes:NA.axes.slice(),buttons:b,vibrationActuator:null}}
+function pollPad(){let ps=[];const blocked=document.featurePolicy&&document.featurePolicy.allowsFeature&&!document.featurePolicy.allowsFeature('gamepad');
+ if(!blocked){try{ps=navigator.getGamepads?navigator.getGamepads():[]}catch(e){ps=[]}}
+ for(const p of ps||[])if(p&&p.connected){padBlocked=false;return p}
+ if(nativeOn){padBlocked=false;return nativePad()}
+ padBlocked=!!blocked;return null}
+const dz=v=>{const z=S.gp.dz/100;if(Math.abs(v)<z)return 0;const n=(Math.abs(v)-z)/(1-z);return Math.sign(v)*Math.pow(Math.min(1,n),S.gp.curve)};
+function screenAxes(){if(S.view==='3d'&&V3.ok&&V3.cam){const fx=V3.cl.x-V3.cp.x,fz=V3.cl.z-V3.cp.z,n=Math.hypot(fx,fz)||1;return[fx/n,fz/n]}return[0,-1]}
+function screenDrive(vx,vy,brake){let m=Math.hypot(vx,vy);if(m<.08)return{l:0,r:0,brake,user:false};if(m>1){vx/=m;vy/=m;m=1}
+ const [fx,fy]=screenAxes(),dx=-fy*vx+fx*vy,dy=fx*vx+fy*vy;let d=angDiff(Math.atan2(dy,dx),P.a),dir=1;
+ if(Math.abs(d)>2.5){dir=-1;d=angDiff(d,Math.PI)}
+ const tu=clamp(d*2.4,-1,1)*(.55+.45*S.gp.sens/100),th=dir*m*Math.max(0,Math.cos(d))**2;let l=th+tu,r=th-tu;const mx=Math.max(1,Math.abs(l),Math.abs(r));
+ return{l:l/mx,r:r/mx,brake,user:true}}
+function gather(){let th=0,tu=0,l=0,r=0,brake=!!(KEYS.ShiftLeft||KEYS.ShiftRight||KEYS.KeyB)||touchHold.brake;
+ if(S.drive==='screen'){let vx=(KEYS.KeyD||KEYS.ArrowRight?1:0)-(KEYS.KeyA||KEYS.ArrowLeft?1:0),vy=(KEYS.KeyW||KEYS.ArrowUp?1:0)-(KEYS.KeyS||KEYS.ArrowDown?1:0);
+  vx+=stick.L.x;vy+=-stick.L.y;
+  if(pad&&!bindWait){const a=pad.axes,b=i=>pad.buttons[i]?pad.buttons[i].value:0,g=S.gp,iy=g.invY?-1:1,ax=i=>dz(a[i]||0),ix=g.steer==='right'?2:0;
+   vx+=ax(ix)+b(15)-b(14);vy+=-ax(ix+1)*iy+b(12)-b(13);if(b(g.map.brake)>.5)brake=true}
+  return screenDrive(vx,vy,brake)}
+ if(S.drive==='arcade'){th+=(KEYS.KeyW||KEYS.ArrowUp?1:0)-(KEYS.KeyS||KEYS.ArrowDown?1:0);tu+=(KEYS.KeyD||KEYS.ArrowRight?1:0)-(KEYS.KeyA||KEYS.ArrowLeft?1:0);
+  th+=-stick.L.y;tu+=stick.L.x}
+ else{l+=(KEYS.KeyW?1:0)-(KEYS.KeyS?1:0);r+=(KEYS.ArrowUp?1:0)-(KEYS.ArrowDown?1:0);l+=-stick.L.y;r+=-stick.R.y}
+ let padTurn=0;
+ if(pad&&!bindWait){const a=pad.axes,b=i=>pad.buttons[i]?pad.buttons[i].value:0,g=S.gp,iy=g.invY?-1:1;
+  const up=b(12),dn=b(13),lf=b(14),rt=b(15),ax=i=>dz(a[i]||0);
+  if(S.drive==='arcade'){
+   if(g.thr!=='triggers')th+=-ax(1)*iy;
+   if(g.thr!=='stick')th+=b(7)-b(6);
+   th+=up-dn;
+   padTurn=(g.steer==='right'?ax(2):ax(0))+rt-lf}
+  else{l+=-ax(1)*iy+up-dn;r+=-ax(3)*iy+(g.thr!=='stick'?b(7)-b(6):0)}
+  if(b(g.map.brake)>.5)brake=true}
+ if(S.drive==='arcade'){th=clamp(th,-1,1);tu=clamp(tu,-1,1)*.8+clamp(padTurn,-1,1)*S.gp.sens/100;tu=clamp(tu,-1,1);l=th+tu;r=th-tu}
+ const mx=Math.max(1,Math.abs(l),Math.abs(r));return{l:l/mx,r:r/mx,brake,user:Math.abs(l)+Math.abs(r)>.3}}
+
+/* ---------- actions ---------- */
+let AC=null;
+function beep(f,d,type){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
+ const o=AC.createOscillator(),g=AC.createGain();o.type=type||'square';o.frequency.value=f;g.gain.setValueAtTime(.05,AC.currentTime);
+ g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d+.02)}catch(e){}}
+function rumble(s,w,ms){const v=S.gp.vib;if(!v)return;s*=v;w*=v;if(pad&&pad.vibrationActuator&&pad.vibrationActuator.playEffect){try{pad.vibrationActuator.playEffect('dual-rumble',{duration:ms,strongMagnitude:s,weakMagnitude:w}).catch(()=>{})}catch(e){}}}
+function toLocal(r,c){const dx=c.x-r.x,dy=c.y-r.y,ca=Math.cos(r.a),sa=Math.sin(r.a);return[dx*ca+dy*sa,-dx*sa+dy*ca]}
+function act(name){if(!P)return;const m=MODELS[P.key];
+ if(name==='tool'){
+  if(m.tool==='auto')return act('auto');
+  if(m.tool==='horn'){beep(660,.18);setTimeout(()=>beep(880,.18),140);P.hornT=.4;return}
+  P.tool=!P.tool;beep(P.tool?520:400,.08,'sawtooth');
+  if(P.tool){let best=null,bd=1e9;for(const c of A.cubes){if(c.held)continue;const [lx,ly]=toLocal(P,c);
+    const ok=m.tool==='claw'?(lx>m.front-6&&lx<m.front+70&&Math.abs(ly)<38):(lx>m.front-4&&lx<m.front+92&&Math.abs(ly)<46);
+    if(ok){const d=Math.abs(lx-m.holdX)+Math.abs(ly);if(d<bd){bd=d;best=c}}}
+   if(best){best.held=true;P.held=best;rumble(.2,.4,80)}}
+  else if(P.held){P.held.held=false;P.held=null}
+  updToolLabel()}
+ else if(name==='auto'){P.auto=!P.auto;beep(P.auto?990:330,.1);updToolLabel()}
+ else if(name==='cam'){if(S.view==='3d'&&V3.ok){const o=['fixed','chase','fpv','orbit','top'];S.cam3=o[(o.indexOf(S.cam3)+1)%5]}else{const o=['auto','fit','follow'];S.cam=o[(o.indexOf(S.cam)+1)%3]}save();syncSeg()}
+ else if(name==='reset'){loadArena()}
+ else if(name==='robot+'||name==='robot-'){const i=MKEYS.indexOf(S.model);S.model=MKEYS[(i+(name==='robot+'?1:MKEYS.length-1))%MKEYS.length];save();renderRobots();loadArena()}
+ else if(name==='arena+'){S.arena=AKEYS[(AKEYS.indexOf(S.arena)+1)%AKEYS.length];save();renderArenas();loadArena()}}
+
+addEventListener('keydown',e=>{const tg=e.target;if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
+ if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
+ KEYS[e.code]=true;if(e.repeat)return;
+ const map={Space:'tool',KeyF:'auto',KeyC:'cam',KeyR:'reset',KeyE:'robot+',KeyQ:'robot-',KeyT:'arena+'};if(map[e.code])act(map[e.code])});
+addEventListener('keyup',e=>{KEYS[e.code]=false});
+addEventListener('blur',()=>{for(const k in KEYS)KEYS[k]=false});
+
+function bindStick(el,s){const knob=el.querySelector('.knob');let id=null;
+ const upd=e=>{const b=el.getBoundingClientRect(),rad=b.width/2;let x=(e.clientX-b.left-rad)/rad,y=(e.clientY-b.top-rad)/rad;const l=Math.hypot(x,y);if(l>1){x/=l;y/=l}
+  s.x=x;s.y=y;knob.style.transform=`translate(${x*rad*.6}px,${y*rad*.6}px)`};
+ el.addEventListener('pointerdown',e=>{id=e.pointerId;try{el.setPointerCapture(id)}catch(_){}upd(e);e.preventDefault()});
+ el.addEventListener('pointermove',e=>{if(e.pointerId===id)upd(e)});
+ const end=e=>{if(e.pointerId!==id)return;id=null;s.x=0;s.y=0;knob.style.transform=''};
+ el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end)}
+bindStick($('#stickL'),stick.L);bindStick($('#stickR'),stick.R);
+const tapBtn=(el,fn)=>el.addEventListener('pointerdown',e=>{e.preventDefault();fn()});
+tapBtn($('#tbTool'),()=>act('tool'));tapBtn($('#tbAuto'),()=>act('auto'));tapBtn($('#tbReset'),()=>act('reset'));
+const tbB=$('#tbBrake');tbB.addEventListener('pointerdown',e=>{e.preventDefault();touchHold.brake=true;tbB.classList.add('down')});
+for(const ev of ['pointerup','pointercancel','pointerleave'])tbB.addEventListener(ev,()=>{touchHold.brake=false;tbB.classList.remove('down')});
+
+/* ---------- physics ---------- */
+function drive(r,inp,dt,vmul){const m=MODELS[r.key],acc=m.acc*dt*(inp.brake?3:1);
+ const tl=inp.brake?0:inp.l,tr=inp.brake?0:inp.r;r.pL+=clamp(tl-r.pL,-acc,acc);r.pR+=clamp(tr-r.pR,-acc,acc);
+ const vmax=m.maxV*vmul,vl=r.pL*vmax,vr=r.pR*vmax,v=(vl+vr)/2,w=(vl-vr)/m.track*m.turnK;
+ r.a+=w*dt;r.x+=Math.cos(r.a)*v*dt;r.y+=Math.sin(r.a)*v*dt;r.sL+=vl*dt;r.sR+=vr*dt;r.dist+=Math.abs(v*dt)}
+function sense(r){const m=MODELS[r.key],ca=Math.cos(r.a),sa=Math.sin(r.a);
+ const rgb=sample(r.x+ca*m.sensorX,r.y+sa*m.sensorX);r.sense=classify(rgb);r.refl=rgb?Math.round((.3*rgb[0]+.59*rgb[1]+.11*rgb[2])/2.55):0;
+ const ox=r.x+ca*(m.usX+10),oy=r.y+sa*(m.usX+10);let t=2550;
+ for(const w of A.walls)t=Math.min(t,rayRect(ox,oy,ca,sa,w));
+ for(const c of A.cubes)if(!c.held)t=Math.min(t,rayCirc(ox,oy,ca,sa,c.x,c.y,CUBE_R));
+ const other=r===P?O:P;if(other&&!other.fallen)t=Math.min(t,rayCirc(ox,oy,ca,sa,other.x,other.y,MODELS[other.key].rc));
+ r.us=Math.max(30,Math.min(2550,t))}
+function aiInput(o,p,dt){if(o.fallen||p.fallen)return{l:0,r:0};const ring=A.ring,lvl=[.55,.75,.95][S.opp];
+ const distC=Math.hypot(o.x-ring.x,o.y-ring.y),out=Math.atan2(o.y-ring.y,o.x-ring.x);
+ if(o.ai<=0&&(o.sense.k==='white'||distC>ring.r-70)&&Math.abs(angDiff(out,o.a))<1.5)o.ai=.55;
+ if(o.ai>0){o.ai-=dt;return{l:-.9*lvl,r:-.3*lvl}}
+ const d=angDiff(Math.atan2(p.y-o.y,p.x-o.x),o.a),tu=clamp(d*1.8,-1,1)*.8,th=Math.abs(d)<.5?1:.2;
+ let l=th+tu,r=th-tu;const mx=Math.max(1,Math.abs(l),Math.abs(r));return{l:l/mx*lvl,r:r/mx*lvl}}
+
+function physics(dt,inp){
+ const playing=!(A.key==='sumo'&&G.phase!=='fight')&&!G.done;
+ let pin=playing?inp:{l:0,r:0,brake:true};
+ if(P.auto&&playing){if(inp.user)P.auto=false,updToolLabel();else{const e=P.refl-50,tu=clamp(S.kp/1000*e,-1,1),th=.38;let l=th+tu,r=th-tu;const mx=Math.max(1,Math.abs(l),Math.abs(r));pin={l:l/mx,r:r/mx}}}
+ if(!P.fallen)drive(P,pin,dt,S.speed/100);
+ if(O&&!O.fallen)drive(O,playing?aiInput(O,P,dt):{l:0,r:0,brake:true},dt,1);
+ P.bumpPrev=P.bump;P.bump=false;
+ for(const r of [P,O]){if(!r||r.fallen)continue;const m=MODELS[r.key];
+  for(const w of A.walls){const n=circRect(r,m.rc,w);if(n){const f=n.nx*Math.cos(r.a)+n.ny*Math.sin(r.a);if(f<-.5)r.bump=true}}}
+ if(O&&!O.fallen&&!P.fallen){const dx=O.x-P.x,dy=O.y-P.y,d=Math.hypot(dx,dy),mind=MODELS[P.key].rc+MODELS[O.key].rc;
+  if(d<mind&&d>1e-3){const nx=dx/d,ny=dy/d,pen=mind-d;
+   const fp=MODELS[P.key].mass*(.35+Math.abs((P.pL+P.pR)/2))*Math.max(0,Math.cos(P.a)*nx+Math.sin(P.a)*ny+.3),
+         fo=MODELS[O.key].mass*(.35+Math.abs((O.pL+O.pR)/2))*Math.max(0,-(Math.cos(O.a)*nx+Math.sin(O.a)*ny)+.3);
+   const sp=fo/(fp+fo+1e-6);P.x-=nx*pen*sp;P.y-=ny*pen*sp;O.x+=nx*pen*(1-sp);O.y+=ny*pen*(1-sp);
+   if(Math.cos(P.a)*nx+Math.sin(P.a)*ny>.6)P.bump=true}}
+ for(const c of A.cubes){if(c.held)continue;for(const r of [P,O])if(r&&!r.fallen)robotCube(r,c)}
+ for(let i=0;i<A.cubes.length;i++)for(let j=i+1;j<A.cubes.length;j++){const a=A.cubes[i],b=A.cubes[j];if(a.held||b.held)continue;
+  const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<CUBE_R*2&&d>1e-3){const p=(CUBE_R*2-d)/2;a.x-=dx/d*p;a.y-=dy/d*p;b.x+=dx/d*p;b.y+=dy/d*p}}
+ for(const c of A.cubes){if(c.held)continue;for(const w of A.walls)circRect(c,CUBE_R,w);c.x=clamp(c.x,CUBE_R,W-CUBE_R);c.y=clamp(c.y,CUBE_R,H-CUBE_R)}
+ if(P.held){const m=MODELS[P.key];P.held.x=P.x+Math.cos(P.a)*m.holdX;P.held.y=P.y+Math.sin(P.a)*m.holdX}
+ for(const r of [P,O]){if(!r)continue;r.toolA+=clamp((r.tool?1:0)-r.toolA,-dt*4,dt*4);if(r.bump)r.bumpT=.35;r.bumpT-=dt;r.hornT-=dt}
+ if(P.bump&&!P.bumpPrev){rumble(.7,.3,120)}
+ if(A.ring)for(const r of [P,O]){if(!r||r.fallen)continue;if(Math.hypot(r.x-A.ring.x,r.y-A.ring.y)>A.ring.r+8){r.fallen=true;r.pL=r.pR=0;rumble(1,1,300)}}
+ for(const r of [P,O])if(r&&r.fallen)r.fallT=Math.min(1,r.fallT+dt*1.6);
+ sense(P);if(O)sense(O);
+ if(S.trail&&!P.fallen){const l=trail[trail.length-1];if(!l||Math.hypot(l[0]-P.x,l[1]-P.y)>25){trail.push([P.x,P.y]);if(trail.length>1600)trail.shift()}}}
+
+/* ---------- game rules ---------- */
+const inR=(x,y,r)=>x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h;
+function finish(t,p){G.done=true;$('#bnT').textContent=t;$('#bnP').textContent=p;$('#banner').hidden=false;beep(784,.15);setTimeout(()=>beep(1046,.25),160)}
+function game(dt){if(G.done)return;const mode=A.def.mode;
+ const moving=Math.abs(P.pL)+Math.abs(P.pR)>.04;
+ if(mode!=='sumo'){if(!G.started&&moving){G.started=true}if(G.started)G.t+=dt}
+ if(mode==='cubes'){let s=0,n=0;for(const c of A.cubes){if(c.held)continue;for(const z of A.zones)if((z.c===c.c||z.c==='any')&&inR(c.x,c.y,z)){s+=20;n++}}
+  if(s>G.score)beep(1175,.12,'triangle');G.score=s;
+  if(n===A.cubes.length)finish('المهمة مكتملة',`نقلت كل المكعبات في ${fmt(G.t)}. النتيجة ${s} نقطة.`);
+  else if(G.t>=(A.def.limit||120))finish('انتهى الوقت',`حصلت على ${s} من ${A.cubes.length*20} نقطة.`)}
+ else if(mode==='maze'){if(inR(P.x,P.y,A.goal))finish('خرجت من المتاهة',`الزمن ${fmt(G.t)} والمسافة ${(P.dist/1000).toFixed(2)} م.`)}
+ else if(mode==='laps'){const cp=A.cps[G.next];if(inR(P.x,P.y,cp)){G.next++;
+   if(G.next>=A.cps.length){G.next=0;const lt=G.t-G.lapT0;G.lapT0=G.t;G.laps.push(lt);if(G.best===null||lt<G.best)G.best=lt;beep(988,.12,'triangle');
+    if(A.def.laps&&G.laps.length>=A.def.laps)finish('السباق انتهى',`${A.def.laps} لفّات في ${fmt(G.t)}. أسرع لفّة ${fmt(G.best)}.`)}}}
+ else if(mode==='sumo'){
+  if(G.phase==='count'){G.cd-=dt;if(G.cd<=0){G.phase='fight';G.t=0;beep(1046,.2)}}
+  else if(G.phase==='fight'){G.t+=dt;let res=null;
+   if(O.fallen&&!P.fallen)res='p';else if(P.fallen&&!O.fallen)res='o';else if(P.fallen&&O.fallen)res='d';else if(G.t>60)res='d';
+   if(res){G.phase='over';G.overT=2.2;if(res==='p')G.sp++;if(res==='o')G.so++;G.msg=res==='p'?'فزت بالجولة':res==='o'?'خسرت الجولة':'تعادل'}}
+  else if(G.phase==='over'){G.overT-=dt;if(G.overT<=0){
+   if(G.sp>=3||G.so>=3)finish(G.sp>=3?'فزت بالمباراة':'خسرت المباراة',`النتيجة ${G.sp} – ${G.so}`);
+   else{G.round++;placeRobots();G.phase='count';G.cd=3}}}}}
+
+/* ---------- drawing ---------- */
+const cv=$('#cv'),ctx=cv.getContext('2d'),wrap=$('#wrap');let DPR=1,cam={x:W/2,y:H/2,s:1};
+function drawRobot(c,key,o){const dec=MODELS[key].deco||key,m=MODELS[key],col=o.color,dk=shade(col,-.4),lt=shade(col,.3),hw=m.w/2;
+ c.fillStyle='rgba(0,0,0,.28)';rr(c,m.back+6,-hw+6,m.front-m.back,m.w,14);c.fill();
+ // locomotion
+ if(m.kind==='tracks'){for(const s of [-1,1]){const y=s*(hw-17),off=((s<0?o.sL:o.sR)%14+14)%14;
+   c.fillStyle='#1c1e21';rr(c,m.back,y-17,m.front-m.back,34,17);c.fill();c.strokeStyle='#3d4248';c.lineWidth=3;c.beginPath();
+   for(let x=m.back+4+off;x<m.front-4;x+=14){c.moveTo(x,y-15);c.lineTo(x,y+15)}c.stroke();c.fillStyle='#6b7178';for(const x of [m.back+20,(m.back+m.front)/2,m.front-20]){c.beginPath();c.arc(x,y,6,0,7);c.fill()}}}
+ else{const wr=m.D/2,ww=m.kind==='balance'?24:26;for(const s of [-1,1]){const y=s*(hw-ww/2),off=((s<0?o.sL:o.sR)%8+8)%8;
+   c.fillStyle='#1c1e21';rr(c,-wr,y-ww/2,wr*2,ww,6);c.fill();c.strokeStyle='#40454b';c.lineWidth=2.5;c.beginPath();
+   for(let x=-wr+off;x<wr;x+=8){c.moveTo(x,y-ww/2+2);c.lineTo(x,y+ww/2-2)}c.stroke();c.fillStyle='#a3a9af';rr(c,-7,y-ww/2+5,14,ww-10,3);c.fill()}
+  if(m.kind==='wheels'){c.fillStyle='#8d949b';c.beginPath();c.arc(m.back+12,0,8,0,7);c.fill()}}
+ // frame beams
+ if(m.kind!=='balance'){const by=hw-(m.kind==='tracks'?40:34);c.fillStyle=col;
+  for(const s of [-1,1]){rr(c,m.back+4,s*by-7,(m.kind==='tracks'?m.front-20:m.front-10)-m.back-4,14,7);c.fill();c.fillStyle=dk;
+   for(let x=m.back+12;x<m.front-14;x+=16){c.beginPath();c.arc(x,s*by,2.6,0,7);c.fill()}c.fillStyle=col}}
+ // attachments under brick
+ if(m.tool==='lift'){const L=o.toolA;c.fillStyle='#3a3f45';rr(c,m.front-12,-48,12,96,3);c.fill();
+  c.fillStyle='rgba(0,0,0,'+(.15+.25*L)+')';for(const s of [-1,1])c.fillRect(m.front+L*8,s*22-6+L*8,86,12);
+  c.fillStyle=L>.5?'#cfd4d9':'#a6adb4';for(const s of [-1,1]){rr(c,m.front-2,s*22-6,88,12,3);c.fill()}
+  if(o.held){const sc=1+.14*L;c.save();c.translate(m.holdX,0);c.scale(sc,sc);cubeShape(c,o.held);c.restore()}}
+ if(dec==='bulldozer'){c.fillStyle='#3a3f45';for(const s of [-1,1])c.fillRect(30,s*48-5,62,10);c.fillStyle=dk;rr(c,m.front-16,-hw,16,m.w,4);c.fill();c.fillStyle=col;rr(c,m.front-16,-hw+3,8,m.w-6,3);c.fill()}
+ if(dec==='sumo'){c.fillStyle='#5c636b';c.beginPath();c.moveTo(m.front-40,-hw+6);c.lineTo(m.front,-hw);c.lineTo(m.front,hw);c.lineTo(m.front-40,hw-6);c.closePath();c.fill();
+  c.fillStyle='#868d95';c.fillRect(m.front-6,-hw,6,m.w)}
+ if(dec==='track3r'){c.fillStyle='#3a3f45';rr(c,m.front-22,-40,22,80,4);c.fill();c.fillStyle=lt;c.fillRect(m.front-10,-34,10,68)}
+ if(dec==='liner'){c.fillStyle=col;rr(c,m.front-14,-7,m.sensorX-m.front+16,14,6);c.fill();c.fillStyle=dk;for(let x=m.front-6;x<m.sensorX-8;x+=16){c.beginPath();c.arc(x,0,2.6,0,7);c.fill()}}
+ if(m.tool==='claw'){c.fillStyle='#3a3f45';rr(c,m.front-14,-42,16,84,4);c.fill();
+  if(o.held){c.save();c.translate(m.holdX,0);cubeShape(c,o.held);c.restore()}
+  const open=.5,closed=o.held?-.16:-.6,phi=open+(closed-open)*o.toolA,L=46;
+  for(const s of [-1,1]){const px=m.front-4,py=s*34,tx=px+L*Math.cos(phi),ty=py+s*L*Math.sin(phi);
+   c.strokeStyle=col;c.lineWidth=11;c.lineCap='round';c.beginPath();c.moveTo(px,py);c.lineTo(tx,ty);c.stroke();
+   c.strokeStyle=dk;c.lineWidth=8;c.beginPath();c.moveTo(tx,ty);c.lineTo(tx+6,ty-s*12);c.stroke();
+   c.fillStyle='#22262b';c.beginPath();c.arc(px,py,5,0,7);c.fill();
+   if(m.chain){c.fillStyle='#111316';for(let k=1;k<=5;k++){const f=k/5.5;c.beginPath();c.arc(px+(tx-px)*f,py+(ty-py)*f,4.5,0,7);c.fill()}c.fillStyle='#2b6fd6';c.beginPath();c.arc(px,py,2.5,0,7);c.fill()}}}
+ // brick / hub
+ if(m.hub==='spike'){const [bx,bl]=m.brick,bh=28;c.fillStyle='#f6c522';rr(c,bx-3,-bh-3,bl+6,bh*2+6,10);c.fill();c.fillStyle='#f4f4f0';rr(c,bx,-bh,bl,bh*2,8);c.fill();
+  c.fillStyle='#2b2e33';rr(c,bx+8,-21,42,42,4);c.fill();c.fillStyle='#f4f4f0';for(let r=0;r<5;r++)for(let q=0;q<5;q++){c.globalAlpha=(r+q)%3?.25:1;c.fillRect(bx+11+q*8,-18+r*8,4,4)}c.globalAlpha=1;
+  const cx=bx+bl-20;c.save();c.shadowColor=o.led;c.shadowBlur=12;c.fillStyle=o.led;c.beginPath();c.arc(cx,0,11,0,7);c.fill();c.restore();c.fillStyle='#d9dcdf';c.beginPath();c.arc(cx,0,8,0,7);c.fill();
+  c.fillStyle='#8d949b';rr(c,cx-4,-22,8,8,2);c.fill();rr(c,cx-4,14,8,8,2);c.fill()}
+ else{
+ // brick
+ const [bx,bl]=m.brick,bh=40;c.fillStyle='#d5d8db';rr(c,bx,-bh,bl,bh*2,9);c.fill();c.strokeStyle='#959ba1';c.lineWidth=2.5;c.stroke();
+ if(m.kind==='balance'){c.fillStyle='#c4cbbd';c.fillRect(bx+5,-30,bl-10,60)}
+ else{c.fillStyle='#c4cbbd';rr(c,bx+8,-27,bl*.36,54,3);c.fill();c.strokeStyle='#55595e';c.lineWidth=2;c.stroke();
+  c.fillStyle='#3b4038';c.fillRect(bx+14,-20,bl*.24,4);c.fillRect(bx+14,-10,bl*.18,3);c.fillRect(bx+14,-2,bl*.22,3);c.fillRect(bx+14,14,bl*.1,6);
+  const cx=bx+bl*.68;c.save();c.shadowColor=o.led;c.shadowBlur=14;c.fillStyle=o.led;rr(c,cx-20,-20,40,40,9);c.fill();c.restore();
+  c.fillStyle='#8d949b';rr(c,cx-17,-17,34,34,7);c.fill();c.fillStyle='#4c5157';rr(c,cx-8,-8,16,16,3);c.fill();
+  c.fillStyle='#8d949b';rr(c,bx+bl-9,-26,6,14,2);c.fill()}
+ }
+ // sensors
+ const sx=m.sensorX;c.fillStyle='#2b2e33';rr(c,sx-9,-9,18,18,3);c.fill();c.fillStyle=o.senseCol;c.beginPath();c.arc(sx,0,5,0,7);c.fill();c.strokeStyle='#e9ebed';c.lineWidth=1.5;c.stroke();
+ const ux=m.usX,sp=m.hub==='spike';c.fillStyle=sp?'#2b2e33':'#d9dcdf';rr(c,ux-8,-31,16,62,6);c.fill();c.strokeStyle='#8f969c';c.lineWidth=1.5;c.stroke();
+ for(const s of [-1,1]){c.fillStyle='#2a2d31';c.beginPath();c.arc(ux+1,s*15,10,0,7);c.fill();c.fillStyle='#55626e';c.beginPath();c.arc(ux+1,s*15,5,0,7);c.fill()}
+ if(o.hornT>0){c.strokeStyle='rgba(243,178,48,'+o.hornT*2+')';c.lineWidth=4;for(const rad of [30,50]){c.beginPath();c.arc(m.front,0,rad+(.4-o.hornT)*80,-.6,.6);c.stroke()}}}
+function cubeShape(c,col){const s=CUBE_R;c.fillStyle='rgba(0,0,0,.25)';rr(c,-s+4,-s+4,s*2,s*2,5);c.fill();c.fillStyle=CUBEC[col];rr(c,-s,-s,s*2,s*2,5);c.fill();
+ c.fillStyle='rgba(255,255,255,.22)';rr(c,-s+4,-s+4,s*2-8,10,3);c.fill();c.strokeStyle='rgba(0,0,0,.25)';c.lineWidth=2;rr(c,-s,-s,s*2,s*2,5);c.stroke()}
+const WALLC={undefined:['#2c3137','#454c54'],wood:['#a87b48','#c99a62'],grass:['#3c6e45','#4f8a58'],frame:['#2f8f3a','#4fb85a']};
+function resize(){const b=wrap.getBoundingClientRect();DPR=Math.min(2,devicePixelRatio||1);const w=b.width,is3=S.view==='3d'&&V3.ok;
+ const h=is3?(w>=700?Math.min(w*.58,660):Math.min(w*1.05,560)):(w>=700?Math.min(w*H/W+60,640):Math.min(w*.95,520));
+ cv.style.height=h+'px';cv.width=Math.round(w*DPR);cv.height=Math.round(h*DPR);
+ if(V3.ok){$('#gl').style.height=h+'px';V3.R.setPixelRatio(Math.min(DPR,1.75));V3.R.setSize(w,h,false);V3.cam.aspect=w/h;V3.cam.updateProjectionMatrix()}}
+new ResizeObserver(resize).observe(wrap);
+function camMode(){if(S.cam!=='auto')return S.cam;const fit=Math.min(cv.width/(W+120),cv.height/(H+120))/DPR;return fit*W<620?'follow':'fit'}
+function draw(dt){const cw=cv.width,ch=cv.height;ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#0e1115';ctx.fillRect(0,0,cw,ch);
+ const fit=Math.min(cw/(W+120),ch/(H+120)),mode=camMode();let tx,ty,ts;
+ if(mode==='fit'){ts=fit;tx=W/2;ty=H/2}else{ts=Math.max(fit*2.2,cw/1300);const hx=cw/ts/2,hy=ch/ts/2;tx=clamp(P.x,Math.min(hx-60,W/2),Math.max(W-hx+60,W/2));ty=clamp(P.y,Math.min(hy-60,H/2),Math.max(H-hy+60,H/2))}
+ const k=Math.min(1,dt*6);cam.s+=(ts-cam.s)*k;cam.x+=(tx-cam.x)*k;cam.y+=(ty-cam.y)*k;
+ ctx.setTransform(cam.s,0,0,cam.s,cw/2-cam.x*cam.s,ch/2-cam.y*cam.s);ctx.imageSmoothingEnabled=true;ctx.drawImage(mat,0,0,W,H);
+ if(S.trail&&trail.length>1){ctx.strokeStyle=P.color;ctx.globalAlpha=.45;ctx.lineWidth=7;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(trail[0][0],trail[0][1]);for(const p of trail)ctx.lineTo(p[0],p[1]);ctx.lineTo(P.x,P.y);ctx.stroke();ctx.globalAlpha=1}
+ for(const c of A.cubes)if(!c.held){ctx.save();ctx.translate(c.x,c.y);cubeShape(ctx,c.c);ctx.restore()}
+ for(const w of A.walls){const [a,b]=WALLC[w.col];ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(w.x+8,w.y+8,w.w,w.h);ctx.fillStyle=a;ctx.fillRect(w.x,w.y,w.w,w.h);ctx.fillStyle=b;ctx.fillRect(w.x+3,w.y+3,Math.max(0,w.w-6),Math.max(0,Math.min(w.h-6,10)))}
+ // ultrasonic beam
+ if(!P.fallen){const m=MODELS[P.key],ca=Math.cos(P.a),sa=Math.sin(P.a),ox=P.x+ca*(m.usX+10),oy=P.y+sa*(m.usX+10);
+  ctx.strokeStyle='rgba(120,200,255,.5)';ctx.lineWidth=3;ctx.setLineDash([14,10]);ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(ox+ca*P.us,oy+sa*P.us);ctx.stroke();ctx.setLineDash([]);
+  if(P.us<2550){ctx.fillStyle='rgba(120,200,255,.8)';ctx.beginPath();ctx.arc(ox+ca*P.us,oy+sa*P.us,8,0,7);ctx.fill()}}
+ const now=performance.now()/1000;
+ for(const r of [O,P]){if(!r)continue;ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.a);
+  if(r.fallen){const f=r.fallT;ctx.globalAlpha=1-f*.6;ctx.scale(1-f*.35,1-f*.35)}
+  if(MODELS[r.key].kind==='balance')ctx.translate(Math.sin(now*9)*2.5*(.3+Math.abs(r.pL+r.pR)),0);
+  const moving=Math.abs(r.pL)+Math.abs(r.pR)>.04;
+  drawRobot(ctx,r.key,{color:r.color,toolA:r.toolA,sL:r.sL,sR:r.sR,held:r.held?r.held.c:null,hornT:r.hornT,
+   led:r.fallen||r.bumpT>0?'#ff5a4a':moving||r.auto?'#3ddc84':'#f5a524',senseCol:r.sense.k==='none'?'#5a5f66':css(r.sense.rgb)});
+  ctx.restore()}
+}
+
+/* ---------- 3D renderer (three.js) ---------- */
+function init3D(){if(!window.THREE)return;
+ try{const T=THREE,gl=$('#gl');
+  const R=new T.WebGLRenderer({canvas:gl,antialias:true,powerPreference:'high-performance'});
+  R.shadowMap.enabled=true;R.shadowMap.type=T.PCFSoftShadowMap;R.outputEncoding=T.sRGBEncoding;
+  const sc=new T.Scene();sc.background=new T.Color(0x0e1115);sc.fog=new T.Fog(0x0e1115,4200,9500);
+  const cam=new T.PerspectiveCamera(52,16/9,4,14000);
+  sc.add(new T.HemisphereLight(0xe8eeff,0x3a3024,.85));
+  const sun=new T.DirectionalLight(0xffffff,.8);sun.position.set(W/2-800,2600,H/2-1000);sun.target.position.set(W/2,0,H/2);sc.add(sun,sun.target);
+  sun.castShadow=true;const sh=sun.shadow;sh.mapSize.set(2048,2048);Object.assign(sh.camera,{left:-1700,right:1700,top:1400,bottom:-1400,near:500,far:6000});sh.bias=-.0006;sh.camera.updateProjectionMatrix();
+  const floor=new T.Mesh(new T.PlaneGeometry(12000,12000),new T.MeshStandardMaterial({color:0x1a1f25,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.set(W/2,-760,H/2);sc.add(floor);
+  const tg=new T.BufferGeometry();tg.setAttribute('position',new T.BufferAttribute(new Float32Array(1700*3),3));
+  const tl=new T.Line(tg,new T.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.7}));tl.frustumCulled=false;sc.add(tl);
+  const bg=new T.BufferGeometry();bg.setAttribute('position',new T.BufferAttribute(new Float32Array(6),3));
+  const beam=new T.Line(bg,new T.LineDashedMaterial({color:0x78c8ff,dashSize:22,gapSize:16,transparent:true,opacity:.8}));beam.frustumCulled=false;sc.add(beam);
+  const dot=new T.Mesh(new T.SphereGeometry(8,12,8),new T.MeshBasicMaterial({color:0x78c8ff}));sc.add(dot);
+  Object.assign(V3,{ok:true,T,R,sc,cam,sun,floor,tex:null,tg,tl,bg,beam,dot,arena:null,pm:null,om:null,orbit:{yaw:-2.2,pitch:.62,dist:1300},
+   cp:new T.Vector3(W/2,1800,H+900),cl:new T.Vector3(W/2,0,H/2),geo:{}});
+  bindOrbit(gl)}catch(e){V3.ok=false}}
+
+function bindOrbit(el){const pts=new Map();let pinch=0;
+ el.addEventListener('pointerdown',e=>{pts.set(e.pointerId,[e.clientX,e.clientY]);try{el.setPointerCapture(e.pointerId)}catch(_){}});
+ el.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;const p=pts.get(e.pointerId),dx=e.clientX-p[0],dy=e.clientY-p[1];pts.set(e.pointerId,[e.clientX,e.clientY]);
+  if(pts.size===2){const [a,b]=[...pts.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch)V3.orbit.dist=clamp(V3.orbit.dist*pinch/d,300,4200);pinch=d;if(S.cam3!=='orbit'){S.cam3='orbit';syncSeg()}return}
+  if(Math.abs(dx)+Math.abs(dy)<1)return;if(S.cam3!=='orbit'){S.cam3='orbit';save();syncSeg()}
+  V3.orbit.yaw+=dx*.008;V3.orbit.pitch=clamp(V3.orbit.pitch+dy*.006,.08,1.45)});
+ const up=e=>{pts.delete(e.pointerId);if(pts.size<2)pinch=0};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+ el.addEventListener('wheel',e=>{e.preventDefault();V3.orbit.dist=clamp(V3.orbit.dist*(1+Math.sign(e.deltaY)*.1),300,4200);if(S.cam3!=='orbit'){S.cam3='orbit';syncSeg()}},{passive:false})}
+
+const mstd=(c,o)=>new V3.T.MeshStandardMaterial(Object.assign({color:c,roughness:.55,metalness:.05},o||{}));
+function bx(g,mat,lx,ly,lz,x,y,z){const m=new V3.T.Mesh(new V3.T.BoxGeometry(lx,ly,lz),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;g.add(m);return m}
+function cyl(g,mat,r,len,x,y,z,axis,seg){const m=new V3.T.Mesh(new V3.T.CylinderGeometry(r,r,len,seg||24),mat);if(axis==='z')m.rotation.x=Math.PI/2;if(axis==='x')m.rotation.z=Math.PI/2;m.position.set(x,y,z);m.castShadow=true;g.add(m);return m}
+function screenTex(){if(V3.geo.scr)return V3.geo.scr;const c=document.createElement('canvas');c.width=128;c.height=96;const g=c.getContext('2d');
+ g.fillStyle='#c4cbbd';g.fillRect(0,0,128,96);g.fillStyle='#2f342d';g.font='bold 22px monospace';g.fillText('EV3',8,30);g.fillRect(84,10,34,14);g.fillStyle='#c4cbbd';g.fillRect(86,12,10,10);
+ g.fillStyle='#2f342d';g.font='12px monospace';g.fillText('Run',8,56);g.fillText('Port View',8,76);g.fillRect(4,62,120,1);
+ const t=new V3.T.CanvasTexture(c);t.encoding=V3.T.sRGBEncoding;return V3.geo.scr=t}
+function treadTex(){const c=document.createElement('canvas');c.width=64;c.height=16;const g=c.getContext('2d');g.fillStyle='#1c1e21';g.fillRect(0,0,64,16);g.fillStyle='#3d4248';for(let x=0;x<64;x+=16)g.fillRect(x,0,6,16);
+ const t=new V3.T.CanvasTexture(c);t.wrapS=V3.T.RepeatWrapping;t.repeat.set(12,1);return t}
+function cubeMesh(col){const T=V3.T,g=new T.Group(),m=mstd(CUBEC[col],{roughness:.35});
+ bx(g,m,50,50,50,0,25,0);for(const [x,z] of [[-12,-12],[12,-12],[-12,12],[12,12]])cyl(g,m,7,6,x,53,z,null,14);return g}
+
+function buildRobot3D(key,color){const T=V3.T,m=MODELS[key],dec=m.deco||key,root=new T.Group(),body=new T.Group();root.add(body);
+ const c0=new T.Color(color),col=mstd(c0),dk=mstd(c0.clone().multiplyScalar(.5)),gray=mstd(0xd5d8db,{roughness:.45}),gray2=mstd(0xdfe2e5,{roughness:.4}),
+  dgray=mstd(0x3a3f45),black=mstd(0x1b1d20,{roughness:.95}),hub=mstd(0xa3a9af,{metalness:.25}),steel=mstd(0xb9c0c7,{metalness:.55,roughness:.35});
+ const P3={root,body,wl:[],wr:[],claws:[],fork:null,tL:null,tR:null,m};
+ const wr=m.kind==='tracks'?20:m.D/2,ww=m.kind==='balance'?24:26;P3.wrad=wr;
+ if(m.kind==='tracks'){for(const s of [-1,1]){const t=treadTex(),tm=new T.MeshStandardMaterial({map:t,roughness:.95});bx(body,tm,m.front-m.back,40,34,(m.front+m.back)/2,20,s*(m.w/2-17));
+   for(const x of [m.back+20,(m.back+m.front)/2,m.front-20])cyl(body,hub,9,36,x,20,s*(m.w/2-17),'z',16);if(s<0)P3.tL=t;else P3.tR=t}}
+ else{for(const s of [-1,1]){const g=new T.Group();g.position.set(0,wr,s*(m.w/2-ww/2));cyl(g,black,wr,ww,0,0,0,'z',28);cyl(g,hub,wr*.55,ww+1,0,0,0,'z',20);
+   bx(g,dgray,wr*1.15,5,ww+2,0,0,0);bx(g,dgray,5,wr*1.15,ww+2,0,0,0);body.add(g);(s<0?P3.wl:P3.wr).push(g)}
+  if(m.kind==='wheels'){const ball=new T.Mesh(new T.SphereGeometry(9,16,12),steel);ball.position.set(m.back+14,9,0);ball.castShadow=true;body.add(ball);bx(body,dgray,22,14,26,m.back+14,22,0)}}
+ const by=m.kind==='balance'?0:m.w/2-(m.kind==='tracks'?40:34),axY=m.kind==='tracks'?34:wr;
+ if(m.kind!=='balance')for(const s of [-1,1])bx(body,col,(m.kind==='tracks'?m.front-20:m.front-10)-m.back-4,14,12,((m.kind==='tracks'?m.front-20:m.front-10)+m.back+4)/2,axY,s*by);
+ // attachments
+ if(m.tool==='claw'){bx(body,dgray,14,32,86,m.front-7,24,0);
+  const armM=m.chain?black:col,pinM=mstd(0x2b6fd6);
+  for(const s of [-1,1]){const g=new T.Group();g.position.set(m.front-4,24,s*34);bx(g,armM,46,m.chain?10:18,10,23,0,0);bx(g,m.chain?black:dk,10,18,14,44,0,-s*7);cyl(g,dgray,6,22,0,0,0,null,12);
+   if(m.chain)for(let k=1;k<=4;k++)cyl(g,pinM,3,14,k*10,0,0,null,8);body.add(g);P3.claws.push([g,s])}
+  if(m.chain){bx(body,mstd(0xf2f2ee),58,26,40,m.front-40,axY+34,0);cyl(body,mstd(0xd6402a),9,6,m.front-12,axY+34,0,'x',16);bx(body,mstd(0xf5cd28),20,10,20,m.front-58,axY+50,0)}}
+ if(m.tool==='lift'){bx(body,dgray,12,130,98,m.front-6,65,0);const g=new T.Group();bx(g,steel,6,52,92,m.front+1,26,0);
+  for(const s of [-1,1])bx(g,steel,88,6,12,m.front+44,3,s*22);body.add(g);P3.fork=g}
+ if(dec==='bulldozer'){for(const s of [-1,1])bx(body,dgray,64,10,10,62,26,s*48);bx(body,dk,16,64,m.w,m.front-8,34,0);bx(body,col,4,52,m.w-10,m.front,34,0)}
+ if(dec==='sumo'){const w=bx(body,steel,52,5,m.w,m.front-24,16,0);w.rotation.z=-Math.atan(26/52);for(const s of [-1,1])bx(body,dgray,46,24,4,m.front-26,16,s*(m.w/2-2))}
+ if(dec==='track3r'){bx(body,dgray,22,30,82,m.front-11,34,0);bx(body,col,10,24,68,m.front,34,0)}
+ if(dec==='liner'){bx(body,col,m.sensorX-m.front+20,10,14,(m.front-14+m.sensorX+6)/2,26,0)}
+ // brick / hub
+ const [bx0,bl]=m.brick;let topY;
+ if(m.hub==='spike'){const y0=axY+8;bx(body,mstd(0xf6c522,{roughness:.45}),bl+6,30,62,bx0+bl/2,y0+15,0);bx(body,mstd(0xf4f4f0,{roughness:.4}),bl,3,56,bx0+bl/2,y0+31.5,0);topY=y0+33;
+  const mc=document.createElement('canvas');mc.width=mc.height=64;const mg2=mc.getContext('2d');mg2.fillStyle='#2b2e33';mg2.fillRect(0,0,64,64);
+  for(let r=0;r<5;r++)for(let q=0;q<5;q++){mg2.fillStyle=(r+q)%3?'#55595e':'#ffffff';mg2.fillRect(6+q*11.5,6+r*11.5,7,7)}
+  const mt=new T.CanvasTexture(mc);const mx=new T.Mesh(new T.PlaneGeometry(40,40),new T.MeshBasicMaterial({map:mt}));mx.rotation.x=-Math.PI/2;mx.position.set(bx0+30,topY+.3,0);body.add(mx);
+  const cx=bx0+bl-20;P3.led=new T.MeshBasicMaterial({color:0x3ddc84});cyl(body,P3.led,11,2,cx,topY+.4,0,null,24);cyl(body,mstd(0xd9dcdf),8,4,cx,topY+1.2,0,null,24)}
+ else if(m.kind==='balance'){bx(body,gray,28,120,80,0,wr+62,0);topY=wr+122;
+  const scr=new T.Mesh(new T.PlaneGeometry(50,40),new T.MeshBasicMaterial({map:screenTex()}));scr.position.set(14.2,wr+92,0);scr.rotation.y=Math.PI/2;body.add(scr);
+  P3.led=new T.MeshBasicMaterial({color:0x3ddc84});bx(body,P3.led,2,34,34,14.6,wr+50,0);bx(body,mstd(0x8d949b),3,28,28,15,wr+50,0);bx(body,mstd(0x4c5157),4,12,12,15.4,wr+50,0)}
+ else{const y0=axY+10;bx(body,gray,bl,38,80,bx0+bl/2,y0+19,0);topY=y0+38;
+  const scr=new T.Mesh(new T.PlaneGeometry(bl*.36,54),new T.MeshBasicMaterial({map:screenTex()}));scr.rotation.x=-Math.PI/2;scr.position.set(bx0+8+bl*.18,topY+.6,0);body.add(scr);
+  const cx=bx0+bl*.68;P3.led=new T.MeshBasicMaterial({color:0x3ddc84});bx(body,P3.led,40,1.6,40,cx,topY+.4,0);bx(body,mstd(0x8d949b),34,3,34,cx,topY+1.2,0);bx(body,mstd(0x4c5157),16,4.4,16,cx,topY+1.6,0);
+  bx(body,mstd(0x8d949b),6,3,14,bx0+bl-6,topY+1,-20)}
+ // sensors
+ bx(body,dgray,18,24,18,m.sensorX,16,0);P3.sense=new T.MeshBasicMaterial({color:0xd62c28,transparent:true,opacity:.85});
+ const disc=new T.Mesh(new T.CylinderGeometry(9,9,1.2,18),P3.sense);disc.position.set(m.sensorX,1.2,0);body.add(disc);
+ const usY=m.kind==='balance'?topY+16:Math.max(axY+30,40),spk=m.hub==='spike';bx(body,spk?mstd(0x2b2e33):gray2,16,30,62,m.usX,usY,0);P3.usY=usY;
+ for(const s of [-1,1]){cyl(body,spk?mstd(0xe8e8e8,{emissive:0x333333}):mstd(0x2a2d31),10,8,m.usX+9,usY,s*15,'x',18);cyl(body,mstd(0x55626e,{metalness:.3}),5,9,m.usX+9.5,usY,s*15,'x',14)}
+ root.traverse(o=>{if(o.isMesh)o.castShadow=true});return P3}
+
+function build3DArena(){const T=V3.T;if(V3.tex)V3.tex.dispose();
+ const tex=new T.CanvasTexture(matHi);tex.anisotropy=V3.R.capabilities.getMaxAnisotropy();tex.encoding=T.sRGBEncoding;V3.tex=tex;
+ V3.sun.position.set(W/2-800,2600,H/2-1000);V3.sun.target.position.set(W/2,0,H/2);V3.floor.position.set(W/2,-760,H/2);
+ if(V3.arena){V3.sc.remove(V3.arena);V3.arena.traverse(o=>{if(o.geometry)o.geometry.dispose()})}
+ const g=new T.Group();
+ const table=new T.Mesh(new T.BoxGeometry(W+360,40,H+360),mstd(0x7a6247,{roughness:.75}));table.position.set(W/2,-20.5,H/2);table.receiveShadow=true;g.add(table);
+ for(const [x,z] of [[-120,-120],[W+120,-120],[-120,H+120],[W+120,H+120]]){const leg=new T.Mesh(new T.BoxGeometry(60,720,60),mstd(0x5a4733));leg.position.set(x,-400,z);g.add(leg)}
+ const matMesh=new T.Mesh(new T.PlaneGeometry(W,H),new T.MeshStandardMaterial({map:tex,roughness:.92}));matMesh.rotation.x=-Math.PI/2;matMesh.position.set(W/2,0,H/2);matMesh.receiveShadow=true;g.add(matMesh);
+ const WM={undefined:mstd(0x2c3137,{roughness:.7}),wood:mstd(0xb08150,{roughness:.75}),grass:mstd(0x3c6e45,{roughness:1}),frame:mstd(0x2f9a3c,{roughness:.4})};
+ for(const w of A.walls){const h=w.col==='grass'?22:w.col==='wood'?100:w.col==='frame'?32:70;bx(g,WM[w.col],w.w,h,w.h,w.x+w.w/2,h/2,w.y+w.h/2)}
+ for(const c of A.cubes){const m=cubeMesh(c.c);m.position.set(c.x,0,c.y);c.mesh=m;g.add(m)}
+ if(A.ring){const ring=new T.Mesh(new T.TorusGeometry(A.ring.r-12,3,6,96),mstd(0xffffff));ring.rotation.x=-Math.PI/2;ring.position.set(A.ring.x,1,A.ring.y);g.add(ring)}
+ V3.sc.add(g);V3.arena=g;V3.pRef=V3.oRef=null}
+
+function pose3D(r,pm,now){const m=MODELS[r.key];pm.root.position.set(r.x,-r.fallT*160,r.y);pm.root.rotation.set(0,-r.a,0);
+ pm.body.rotation.set(0,0,0);if(r.fallen)pm.body.rotation.x=r.fallT*.9;
+ if(m.kind==='balance')pm.body.rotation.z=Math.sin(now*9)*.05*(.3+Math.abs(r.pL+r.pR));
+ for(const g of pm.wl)g.rotation.z=-r.sL/pm.wrad;for(const g of pm.wr)g.rotation.z=-r.sR/pm.wrad;
+ if(pm.tL){pm.tL.offset.x=-(r.sL/14)%1;pm.tR.offset.x=-(r.sR/14)%1}
+ const open=.5,closed=r.held?-.16:-.6,phi=open+(closed-open)*r.toolA;for(const [g,s] of pm.claws)g.rotation.y=-s*phi;
+ if(pm.fork)pm.fork.position.y=r.toolA*70;
+ const moving=Math.abs(r.pL)+Math.abs(r.pR)>.04,led=r.fallen||r.bumpT>0?0xff5a4a:moving||r.auto?0x3ddc84:0xf5a524;
+ pm.led.color.setHex(r.hornT>0&&Math.sin(now*40)>0?0xffffff:led);
+ if(r.sense.k==='none')pm.sense.color.setHex(0x5a5f66);else pm.sense.color.setRGB(r.sense.rgb[0]/255,r.sense.rgb[1]/255,r.sense.rgb[2]/255)}
+
+const CAM3N={fixed:'كاميرا ثابتة من جهتك',chase:'كاميرا المطاردة',fpv:'الكاميرا الأمامية',orbit:'كاميرا حرة',top:'كاميرا علوية'};
+function draw3D(dt){const T=V3.T,now=performance.now()/1000;
+ if(V3.pRef!==P||V3.pKey!==P.key+P.color){if(V3.pm)V3.sc.remove(V3.pm.root);V3.pm=buildRobot3D(P.key,P.color);V3.sc.add(V3.pm.root);V3.pRef=P;V3.pKey=P.key+P.color}
+ if(O){if(V3.oRef!==O||V3.oKey!==O.color){if(V3.om)V3.sc.remove(V3.om.root);V3.om=buildRobot3D(O.key,O.color);V3.sc.add(V3.om.root);V3.oRef=O;V3.oKey=O.color}}
+ else if(V3.om){V3.sc.remove(V3.om.root);V3.om=null;V3.oRef=null}
+ pose3D(P,V3.pm,now);if(O)pose3D(O,V3.om,now);
+ const pm=MODELS[P.key];
+ for(const c of A.cubes){if(!c.mesh)continue;let y=0;if(c.held)y=pm.tool==='lift'?V3.pm.fork.position.y+6:2;c.mesh.position.set(c.x,y,c.y)}
+ const tp=V3.tg.attributes.position;let n=0;if(S.trail){for(const p of trail){tp.setXYZ(n++,p[0],1.5,p[1])}if(n)tp.setXYZ(n++,P.x,1.5,P.y)}
+ tp.needsUpdate=true;V3.tg.setDrawRange(0,n);V3.tl.material.color.set(P.color);
+ const ca=Math.cos(P.a),sa=Math.sin(P.a),usY=V3.pm.usY,ox=P.x+ca*(pm.usX+10),oz=P.y+sa*(pm.usX+10),bp=V3.bg.attributes.position;
+ bp.setXYZ(0,ox,usY,oz);bp.setXYZ(1,ox+ca*P.us,usY,oz+sa*P.us);bp.needsUpdate=true;V3.beam.computeLineDistances();V3.beam.visible=!P.fallen;
+ V3.dot.visible=!P.fallen&&P.us<2550;V3.dot.position.set(ox+ca*P.us,usY,oz+sa*P.us);
+ const cp=new T.Vector3(),cl=new T.Vector3(),mode=S.cam3;let k=1-Math.exp(-dt*5);
+ if(mode==='chase'){cp.set(P.x-ca*640,400,P.y-sa*640);cl.set(P.x+ca*260,40,P.y+sa*260)}
+ else if(mode==='fpv'){const h=pm.kind==='balance'?190:130;cp.set(P.x+ca*(pm.front*.2),h,P.y+sa*(pm.front*.2));cl.set(P.x+ca*900,0,P.y+sa*900);k=1-Math.exp(-dt*16)}
+ else if(mode==='fixed'){const t=Math.tan(26*Math.PI/180),hh=Math.max(H*.5/t,W*.42/(t*V3.cam.aspect)),fx=clamp(P.x,W*.3,W*.7)*.6+W/2*.4;cp.set(fx,hh*.82,H/2+hh*.72);cl.set(fx,0,H/2+30)}
+ else if(mode==='top'){const t=Math.tan(26*Math.PI/180),hh=Math.max(H*.62/t,W*.56/(t*V3.cam.aspect));cp.set(W/2,hh,H/2+hh*.32);cl.set(W/2,0,H/2+40)}
+ else{const o=V3.orbit;cp.set(P.x+Math.cos(o.yaw)*Math.cos(o.pitch)*o.dist,Math.sin(o.pitch)*o.dist+30,P.y+Math.sin(o.yaw)*Math.cos(o.pitch)*o.dist);cl.set(P.x,40,P.y);k=1-Math.exp(-dt*12)}
+ V3.cp.lerp(cp,k);V3.cl.lerp(cl,k);V3.cam.position.copy(V3.cp);V3.cam.lookAt(V3.cl);
+ V3.R.render(V3.sc,V3.cam)}
+
+function overlay(){const ov=$('#ov');let t='';
+ if(A.key==='sumo'&&!G.done&&(G.phase==='count'||G.phase==='over'))t=G.phase==='count'?String(Math.ceil(G.cd)):G.msg;
+ ov.hidden=!t;if(t){if(ov.textContent!==t)ov.textContent=t;ov.classList.toggle('small',G.phase==='over')}
+ const is3=S.view==='3d'&&V3.ok;set('camHint',is3?CAM3N[S.cam3]+(S.cam3==='orbit'?' · اسحب للتدوير وقرّب بإصبعين':' · اسحب لتدوير الكاميرا'):'منظر علوي ثنائي الأبعاد')}
+
+
+/* ---------- HUD & EV3 ports ---------- */
+const PORTS=[['A','متوسط'],['B','كبير يسار'],['C','كبير يمين'],['D','فارغ'],['1','لمس'],['2','جايرو'],['3','لون'],['4','فوق صوتي']];
+const PORTS_S=[['A','محرك الأداة'],['E','محرك يسار'],['F','محرك يمين'],['—','فارغ'],['B','القوة'],['Hub','الدوران'],['C','اللون'],['D','المسافة']];
+function portLabels(){const L=MODELS[P.key].hub==='spike'?PORTS_S:PORTS;document.querySelectorAll('#ports .port').forEach((el,i)=>{el.querySelector('.pn').innerHTML=`<span>${L[i][1]}</span><b>${L[i][0]}</b>`})}
+$('#ports').innerHTML=PORTS.map(p=>`<div class="port"><div class="pn"><span>${p[1]}</span><b>${p[0]}</b></div><div class="pv" id="pv${p[0]}">—</div><div class="ps" id="ps${p[0]}"></div></div>`).join('');
+const set=(id,v)=>{const e=document.getElementById(id);if(e&&e.innerHTML!==v)e.innerHTML=v};
+function updHudStatic(){portLabels();set('hudTitle',A.def.ar);set('hudHint',A.def.hint);updToolLabel()}
+function updToolLabel(){const m=MODELS[P.key],t=TOOLTXT[m.tool];$('#tbTool').textContent=m.tool==='auto'?t[P.auto?1:0]:t[P.tool?1:0];
+ $('#tbAuto').textContent=P.auto?'إيقاف التتبع':'تتبع آلي';$('#tbAuto').classList.toggle('down',P.auto)}
+let hudAcc=0;
+function hud(dt){hudAcc+=dt;if(hudAcc<.08)return;hudAcc=0;const m=MODELS[P.key],mode=A.def.mode;
+ const deg=s=>Math.round(s/(Math.PI*m.D)*360);
+ set('pvA',m.tool==='claw'||m.tool==='lift'?Math.round(P.toolA*100)+'%':'—');set('psA',m.tool==='claw'?(P.tool?'مغلق':'مفتوح')+(P.held?' · يحمل مكعباً':''):m.tool==='lift'?(P.tool?'مرفوعة':'منخفضة')+(P.held?' · يحمل مكعباً':''):'');
+ set('pvB',Math.round(P.pL*100)+'%');set('psB',deg(P.sL)+'°');set('pvC',Math.round(P.pR*100)+'%');set('psC',deg(P.sR)+'°');set('pvD','—');
+ set('pv1',P.bumpT>0?'مضغوط':'حر');set('ps1',P.bumpT>0?'1':'0');
+ set('pv2',Math.round((P.a-P.a0)*180/Math.PI)+'°');set('ps2','زاوية تراكمية');
+ set('pv3',`<span class="sw" style="background:${P.sense.k==='none'?'transparent':css(P.sense.rgb)}"></span>${P.sense.ar}`);set('ps3','انعكاس '+P.refl+'%');
+ set('pv4',P.us>=2550?'255 سم':(P.us/10).toFixed(1)+' سم');set('ps4',P.us<150?'قريب جداً':'المدى 3–255 سم');
+ let l1='الوقت',v1=fmt(G.t),l2='النقاط',v2=String(G.score);
+ if(mode==='free'){l2='المسافة';v2=(P.dist/1000).toFixed(2)+' م'}
+ if(mode==='cubes'){l1='المتبقي';v1=fmt((A.def.limit||120)-G.t)}
+ if(mode==='maze'){l2='المسافة';v2=(P.dist/1000).toFixed(2)+' م'}
+ if(mode==='laps'){l2=A.def.laps?'اللفّة':'أسرع لفّة';v2=A.def.laps?Math.min(G.laps.length+1,A.def.laps)+' / '+A.def.laps:(G.best===null?'—':fmt(G.best));v1=fmt(G.t-G.lapT0);l1='اللفّة الحالية'}
+ if(mode==='sumo'){l1='الجولة '+G.round;v1=fmt(Math.max(0,60-G.t));l2='أنت – الخصم';v2=G.sp+' – '+G.so}
+ set('hudL1',l1);set('hudV1',v1);set('hudL2',l2);set('hudV2',v2);
+ if(S.ptab==='pad'){drawTester();set('padStat',padBlocked?'المتصفح يمنع الوصول ليد التحكم داخل هذا الإطار. افتح الصفحة في نافذة كاملة أو في التطبيق.':pad?(pad.native?'متصلة عبر Android مباشرة (من داخل التطبيق)':'متصلة: '+pad.id.slice(0,48).replace(/[<>&]/g,'')):'لم تُكتشف يد تحكم بعد. وصّلها ثم اضغط أي زر فيها.')}
+ const chip=$('#padChip');chip.classList.toggle('on',!!pad);
+ set('padTxt',padBlocked?'يد التحكم محجوبة في هذا الإطار':pad?(padType==='ps'?'يد PlayStation متصلة':padType==='xbox'?'يد Xbox متصلة':'يد تحكم متصلة'):'يد التحكم: غير متصلة')}
+
+/* ---------- controls help ---------- */
+let helpFor='';
+const BTNN={ps:['✕','○','□','△','L1','R1','L2','R2','Share','Options','L3','R3','↑','↓','←','→','PS','Touchpad'],
+ xbox:['A','B','X','Y','LB','RB','LT','RT','View','Menu','LS','RS','↑','↓','←','→','Xbox','Share']};
+const bName=i=>(BTNN[padType==='ps'?'ps':'xbox'][i])||('زر '+i);
+const ACTN=[['tool','الأداة (مخلب / شوكة / بوق)'],['brake','فرامل (مطوّل)'],['auto','تتبع الخط الآلي'],['cam','تغيير الكاميرا'],['robotm','الروبوت السابق'],['robotp','الروبوت التالي'],['arena','الحلبة التالية'],['reset','إعادة الحلبة']];
+let bindWait=null;
+function renderKeys(){const t=padType;const sig=t+S.drive+JSON.stringify(S.gp);if(helpFor===sig)return;helpFor=sig;
+ const tank=S.drive==='tank',M=S.gp.map,lt=bName(6),rt=bName(7),stk=S.gp.steer==='right'?'العصا اليمنى':'العصا اليسرى';
+ const rows=[[tank?'W / S':'W A S D','قيادة'+(tank?' المحرك B':'')],[tank?'↑ / ↓':'الأسهم',tank?'المحرك C':'قيادة'],['Space','الأداة: مخلب / شوكة / بوق'],['F','تتبع الخط الآلي'],['Shift','فرامل'],['C','تغيير الكاميرا'],['Q / E','الروبوت السابق / التالي'],['T','الحلبة التالية'],['R','إعادة الحلبة'],
+  [tank?'العصا اليسرى / اليمنى':'العصا اليسرى',tank?'المحركان B و C':(S.gp.thr==='triggers'?'—':'تسارع ورجوع')],
+  ...(tank?[]:[[stk,'التوجيه']]),[rt+' / '+lt,tank?'المحرك C للأمام / للخلف':S.gp.thr==='stick'?'غير مستخدم':'تسارع / رجوع'],
+  ...ACTN.map(([k,n])=>[bName(M[k]),n])];
+ $('#keys').innerHTML=rows.map((r,i)=>(i===9?'<span style="grid-column:1/-1;color:var(--fg);font-weight:600;margin-top:6px">'+(t==='ps'?'يد PlayStation':t==='xbox'?'يد Xbox':'يد التحكم (PlayStation / Xbox)')+'</span>':'')+`<kbd>${r[0]}</kbd><span>${r[1]}</span>`).join('');
+ $('#padKind').textContent=t==='ps'?'PlayStation':t==='xbox'?'Xbox':'لوحة المفاتيح ويد التحكم'}
+
+/* ---------- side panel ---------- */
+
+function seg(id,key,num,after){const el=$(id);el.querySelectorAll('button').forEach(b=>b.onclick=()=>{S[key]=num?+b.dataset.v:b.dataset.v;save();syncSeg();after&&after()})}
+function syncSeg(){for(const [id,key] of [['#segView','view'],['#segCam3','cam3'],['#segDrive','drive'],['#segCam','cam'],['#segTouch','touch'],['#segTrail','trail'],['#segOpp','opp']])
+  $(id).querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(S[key])===b.dataset.v));
+ const is3=S.view==='3d'&&V3.ok;$('#gl').hidden=!is3;$('#cv').hidden=is3;$('#rowCam3').hidden=!is3;$('#rowCam2').hidden=is3;
+ const coarse=matchMedia('(pointer: coarse)').matches,show=S.touch==='on'||(S.touch==='auto'&&coarse);
+ const tc=$('#touch'),T=S.tc;for(const k of ['stick','btn','sx','sy','bx','by'])tc.style.setProperty('--'+k,T[k]+'px');tc.style.setProperty('--op',T.op/100);
+ tc.classList.toggle('lefty',!!T.lefty);tc.classList.toggle('row',!!T.row);
+ $('#touch').hidden=!show;$('#touch').classList.toggle('tank',S.drive==='tank');$('#stickR').hidden=S.drive!=='tank';$('#stickLlbl').textContent=S.drive==='tank'?'المحرك B':S.drive==='screen'?'الاتجاه':'قيادة'}
+seg('#segView','view',0,()=>{err3=0;resize()});seg('#segCam3','cam3');seg('#segDrive','drive',0,()=>{renderKeys()});seg('#segCam','cam');seg('#segTouch','touch');seg('#segTrail','trail',1,()=>{trail=[]});seg('#segOpp','opp',1);
+const spd=$('#spd'),kp=$('#kp');spd.value=S.speed;kp.value=S.kp;
+const showR=()=>{$('#spdV').textContent=S.speed+'%';$('#kpV').textContent=(S.kp/1000).toFixed(3)};showR();
+spd.oninput=()=>{S.speed=+spd.value;save();showR()};kp.oninput=()=>{S.kp=+kp.value;save();showR()};
+$('#btnReset').onclick=()=>act('reset');$('#bnB').onclick=()=>act('reset');
+addEventListener('gamepadconnected',()=>{helpFor=''});addEventListener('gamepaddisconnected',()=>{helpFor=''});
+
+
+/* ---------- settings tabs ---------- */
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',String(x===b)));
+ for(const t of ['gen','tch'])$('#tab-'+t).hidden=t!==b.dataset.tab;if(b.dataset.tab==='tch')renderTouchTab()});
+function showPane(k){S.ptab=k;save();document.querySelectorAll('#ptabs button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.pane===k)));
+ document.querySelectorAll('aside .sec[data-pane]').forEach(sc=>sc.hidden=sc.dataset.pane!==k);if(k==='pad')renderPadTab();if(k==='robot')renderRobots(true);if(k==='arena')renderArenas(true);
+ const a=document.querySelector('aside');if(a&&innerWidth<1040){const r=a.getBoundingClientRect();if(r.top<0)a.scrollIntoView({block:'start',behavior:'smooth'})}}
+document.querySelectorAll('#ptabs button[data-pane]').forEach(b=>b.onclick=()=>showPane(b.dataset.pane));$('#ptMenu').onclick=()=>openMenu();
+let uid=0;
+function rowEl(label,ctrl){const r=document.createElement('div');r.className='row';const l=document.createElement('label');l.textContent=label;r.append(l,ctrl);return r}
+function sliderEl(min,max,step,get,setv,fm){const w=document.createElement('div');w.style.cssText='display:flex;gap:8px;align-items:center';
+ const i=document.createElement('input');i.type='range';i.id='rg'+(++uid);i.min=min;i.max=max;i.step=step;i.value=get();
+ const v=document.createElement('span');v.className='rv';const show=()=>{v.textContent=fm(+i.value)};show();i.oninput=()=>{setv(+i.value);show();save()};w.append(i,v);return w}
+function segEl(opts,get,setv){const s=document.createElement('div');s.className='seg';const sync=()=>s.querySelectorAll('button').forEach((x,i)=>x.setAttribute('aria-pressed',String(String(opts[i][0])===String(get()))));
+ for(const [val,txt] of opts){const b=document.createElement('button');b.type='button';b.textContent=txt;b.onclick=()=>{setv(val);save();sync()};s.append(b)}sync();return s}
+function plainBtn(txt,fn){const b=document.createElement('button');b.type='button';b.className='btn ghost';b.textContent=txt;b.onclick=fn;return b}
+
+function renderTouchTab(){const box=$('#tab-tch');box.innerHTML='';const T=S.tc,ap=()=>syncSeg(),px=v=>v+' px';
+ box.append(
+  rowEl('إظهار الأزرار',segEl([['auto','تلقائي'],['on','إظهار'],['off','إخفاء']],()=>S.touch,v=>{S.touch=v;ap()})),
+  rowEl('مكان عصا القيادة',segEl([[0,'يسار'],[1,'يمين']],()=>T.lefty,v=>{T.lefty=v;ap()})),
+  rowEl('ترتيب الأزرار',segEl([[0,'شبكة 2×2'],[1,'صف واحد']],()=>T.row,v=>{T.row=v;ap()})),
+  rowEl('حجم العصا',sliderEl(80,200,2,()=>T.stick,v=>{T.stick=v;ap()},px)),
+  rowEl('حجم الأزرار',sliderEl(40,96,2,()=>T.btn,v=>{T.btn=v;ap()},px)),
+  rowEl('الشفافية',sliderEl(30,100,5,()=>T.op,v=>{T.op=v;ap()},v=>v+'%')),
+  rowEl('العصا: بعدها عن الحافة',sliderEl(0,240,2,()=>T.sx,v=>{T.sx=v;ap()},px)),
+  rowEl('العصا: ارتفاعها',sliderEl(0,240,2,()=>T.sy,v=>{T.sy=v;ap()},px)),
+  rowEl('الأزرار: بعدها عن الحافة',sliderEl(0,240,2,()=>T.bx,v=>{T.bx=v;ap()},px)),
+  rowEl('الأزرار: ارتفاعها',sliderEl(0,240,2,()=>T.by,v=>{T.by=v;ap()},px)),
+  rowEl('',plainBtn('استعادة الوضع الافتراضي',()=>{Object.assign(S.tc,TC0);save();syncSeg();renderTouchTab()})));
+ const n=document.createElement('p');n.className='note';n.textContent='التغييرات تظهر مباشرة فوق الساحة. على الكمبيوتر اختر «إظهار» لتضبط الأزرار وأنت تراها.';box.append(n)}
+
+function renderPadTab(){const box=$('#tab-pad');box.innerHTML='';const g=S.gp,pc=()=>{helpFor=''};
+ const st=document.createElement('p');st.className='note';st.id='padStat';st.style.marginTop='0';box.append(st);
+ box.append(
+  rowEl('أسماء الأزرار',segEl([['auto','تلقائي'],['ps','PlayStation'],['xbox','Xbox']],()=>g.glyph||'auto',v=>{g.glyph=v;pc();padType='';renderPadTab()})),
+  rowEl('المنطقة الميتة',sliderEl(0,40,1,()=>g.dz,v=>{g.dz=v},v=>v+'%')),
+  rowEl('حساسية التوجيه',sliderEl(30,150,5,()=>g.sens,v=>{g.sens=v},v=>v+'%')),
+  rowEl('منحنى الاستجابة',segEl([[0.7,'سريع'],[1,'خطي'],[1.8,'دقيق']],()=>g.curve,v=>{g.curve=v})),
+  rowEl('عصا التوجيه',segEl([['left','اليسرى'],['right','اليمنى']],()=>g.steer,v=>{g.steer=v;pc()})),
+  rowEl('مصدر التسارع',segEl([['stick','العصا'],['triggers','الزنادات'],['both','الاثنان']],()=>g.thr,v=>{g.thr=v;pc()})),
+  rowEl('عكس المحور العمودي',segEl([[0,'لا'],[1,'نعم']],()=>g.invY,v=>{g.invY=v})),
+  rowEl('الاهتزاز',segEl([[0,'إيقاف'],[0.5,'خفيف'],[1,'قوي']],()=>g.vib,v=>{g.vib=v;rumble(.8,.5,200)})));
+ const h=document.createElement('h3');h.style.margin='14px 0 4px';h.innerHTML='تخصيص الأزرار <small>«تعيين» ثم اضغط زراً في اليد</small>';box.append(h);
+ for(const [k,n] of ACTN){const b=document.createElement('button');b.type='button';b.className='bindb'+(bindWait===k?' wait':'');b.textContent=bindWait===k?'اضغط زراً…':bName(g.map[k]);
+  b.title='تعيين';b.onclick=()=>{bindWait=bindWait===k?null:k;renderPadTab()};box.append(rowEl(n,b))}
+ box.append(rowEl('',plainBtn('استعادة إعدادات اليد',()=>{Object.assign(S.gp,GP0);S.gp.map={...GPMAP0};bindWait=null;save();pc();renderPadTab()})));
+ const h2=document.createElement('h3');h2.style.margin='14px 0 0';h2.innerHTML='اختبار اليد <small>العصوان والزنادات مباشرة</small>';const tc=document.createElement('canvas');tc.id='tester';box.append(h2,tc)}
+
+function drawTester(){const c=$('#tester');if(!c)return;const w=c.clientWidth||300,h=96;if(c.width!==Math.round(w*DPR)){c.width=Math.round(w*DPR);c.height=Math.round(h*DPR)}
+ const g=c.getContext('2d');g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,w,h);const a=pad?pad.axes:[0,0,0,0],b=i=>pad&&pad.buttons[i]?pad.buttons[i].value:0;
+ const st=(cx,x,y,lbl)=>{g.strokeStyle='#4a5563';g.lineWidth=2;g.beginPath();g.arc(cx,44,32,0,7);g.stroke();g.strokeStyle='rgba(243,178,48,.45)';g.beginPath();g.arc(cx,44,Math.max(1,32*S.gp.dz/100),0,7);g.stroke();
+  g.fillStyle='#f3b230';g.beginPath();g.arc(cx+clamp(x,-1,1)*32,44+clamp(y,-1,1)*32,7,0,7);g.fill();g.fillStyle='#8e99a6';g.font='11px sans-serif';g.textAlign='center';g.fillText(lbl,cx,90)};
+ st(46,a[0]||0,a[1]||0,bName(10));st(w-46,a[2]||0,a[3]||0,bName(11));
+ for(const [i,x] of [[6,w/2-34],[7,w/2+22]]){g.fillStyle='#2e3742';g.fillRect(x,12,12,64);g.fillStyle='#f3b230';const v=b(i);g.fillRect(x,12+64*(1-v),12,64*v);g.fillStyle='#8e99a6';g.font='11px sans-serif';g.textAlign='center';g.fillText(bName(i),x+6,90)}
+ const pr=pad?pad.buttons.map((x,i)=>x.pressed?bName(i):null).filter(Boolean).join(' '):'';g.fillStyle='#e9edf1';g.font='600 13px sans-serif';g.textAlign='center';g.fillText(pr||(pad?'':'غير متصلة'),w/2,8+0)}
+
+/* ---------- AI assistant ---------- */
+let aiS=null,aiImgOK=false,aiTurns=[],aiCtl=null,aiPic=null,aiCtx='sim',aiBusy=false;
+const aiLog=$('#aiLog');
+function md(s){const esc=t=>t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));let out='';
+ s.split('```').forEach((p,i)=>{if(i%2){out+='<pre dir="ltr" style="background:var(--bg);padding:8px 10px;border-radius:8px;overflow-x:auto;font:12px/1.5 var(--f-mono);margin:6px 0">'+esc(p.replace(/^[\w-]*\n/,''))+'</pre>';return}
+  let list=null;for(const line of p.split('\n')){const l=esc(line).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code dir="ltr">$1</code>').replace(/^_(.+)_$/,'<em>$1</em>');
+   const ol=/^\s*(\d+)[.)]\s+(.*)/.exec(l),ul=/^\s*[-•*]\s+(.*)/.exec(l);
+   if(ol||ul){const t=ol?'ol':'ul';if(list!==t){if(list)out+='</'+list+'>';out+='<'+t+'>';list=t}out+='<li>'+(ol?ol[2]:ul[1])+'</li>'}
+   else{if(list){out+='</'+list+'>';list=null}const hh=/^#{1,4}\s+(.*)/.exec(l);if(hh)out+='<p><strong>'+hh[1]+'</strong></p>';else if(l.trim())out+='<p>'+l+'</p>'}}
+  if(list)out+='</'+list+'>'});return out}
+function bubble(cls,html){const d=document.createElement('div');d.className='msg '+cls;d.innerHTML=html;aiLog.append(d);aiLog.scrollTop=aiLog.scrollHeight;return d}
+function telemetry(){const m=MODELS[P.key];return JSON.stringify({الحلبة:A.def.ar,الروبوت:m.ar,عرض_الروبوت_مم:m.w,قطر_العجلة_مم:m.D,السرعة_القصوى:S.speed+'%',نمط_القيادة:S.drive==='tank'?'دبابة':'عصا واحدة',
+ قدرة_B:Math.round(P.pL*100)+'%',قدرة_C:Math.round(P.pR*100)+'%',دوران_B:Math.round(P.sL/(Math.PI*m.D)*360)+'°',دوران_C:Math.round(P.sR/(Math.PI*m.D)*360)+'°',
+ لمس_1:P.bumpT>0?'مضغوط':'حر',جايرو_2:Math.round((P.a-P.a0)*180/Math.PI)+'°',لون_3:P.sense.ar,انعكاس_3:P.refl+'%',فوق_صوتي_4:Math.round(P.us/10)+' سم',
+ الأداة:m.tool,الأداة_مفعلة:P.tool,يحمل_مكعبا:!!P.held,تتبع_آلي:P.auto,Kp:S.kp/1000,الوقت_ث:Math.round(G.t),المسافة_م:+(P.dist/1000).toFixed(2),
+ يد_التحكم:pad?pad.id.slice(0,40):'غير متصلة',المنطقة_الميتة:S.gp.dz+'%',العرض:S.view})}
+function rules(){return 'أنت «مساعد EV3»، مدرّب خبير في روبوتات LEGO MINDSTORMS EV3 (البريك 31313 وطقم التعليم 45544 ومحركات كبيرة ومتوسطة ومستشعرات لمس وجايرو ولون وفوق صوتي) وفي مسابقات WRO وFLL. '+
+ 'المستخدم طالب يحب الدقة. أجب بالعربية الواضحة. ابدأ بسطر واحد بالخط العريض يذكر السبب الأرجح، ثم خطوات فحص وإصلاح مرقّمة وقصيرة وقابلة للقياس: اذكر المنفذ والقيمة المتوقعة ووضع المستشعر ونسبة القدرة. '+
+ 'إذا احتاج الحل برمجة فاكتب مثالاً قصيراً بلغة Python لمكتبة Pybricks داخل كتلة كود، أو خطوات بلوكات EV3 Classroom. إن كانت المعلومات ناقصة فاختم بسؤال واحد محدد. لا تتجاوز 200 كلمة ما لم يُطلب التفصيل. '+
+ (aiCtx==='sim'?'السياق: المشكلة داخل «محاكي EV3» على الويب. ستجد في رسالة المستخدم قراءات حية من المحاكي؛ استخدمها في التشخيص. أدوات المحاكي المتاحة للمستخدم: زر الأداة، التتبع الآلي للخط بمعامل Kp (من الإعدادات)، تغيير الكاميرا، السرعة القصوى، المنطقة الميتة وحساسية يد التحكم، إعادة الحلبة. اذكر عند الحاجة أن المحاكي يبسّط الاحتكاك والانزلاق مقارنة بالواقع.'
+  :'السياق: المشكلة في روبوت EV3 حقيقي. اقترح فحوصات عبر شاشة Port View في البريك، وتجارب قصيرة قابلة للتكرار.')}
+function setAiMode(){$('#aiMode').textContent=aiS?'يعمل عبر Claude':'دليل الأعطال المدمج';
+ $('#aiNote').textContent=aiS?'عند اختيار «مشكلة في المحاكي» يقرأ المساعد قراءات المنافذ الحية. أول سؤال يطلب إذنك لاستخدام حسابك في Claude.'
+  :'هذه النسخة تعمل خارج Claude، فيجيب دليل أعطال مدمج يغطي أشهر مشاكل EV3. افتح الصفحة داخل Claude لتشخيص ذكي كامل وتحليل صور الروبوت.';
+ $('#aiPicL').hidden=!(aiS&&aiImgOK)}
+const nrm=t=>t.toLowerCase().replace(/[ً-ْ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');
+const KB=[
+ {k:['مستقيم','ينحرف','يميل','straight','drift','يروح يمين','يروح يسار'],t:'الانحراف عن الخط المستقيم سببه غالباً اختلاف المحركين B و C',
+  s:['افتح Port View وشغّل المحركين 50% لمدة 3 ثوانٍ؛ يجب أن تكون الدرجات متقاربة (فرق أقل من 2%).','تأكد أن العجلتين بنفس القطر ومثبتتين بإحكام ولا تحتك بالهيكل.','استخدم بلوك «Move Steering» أو «Move Tank» بدلاً من تشغيل كل محرك وحده، فهي تزامن المحركين.','للدقة الأعلى: صحّح بالجايرو، الخطأ = الزاوية الحالية − الزاوية الهدف، والتوجيه = الخطأ × 2 تقريباً.','اشحن البطارية: الجهد المنخفض يزيد الفرق بين المحركات.']},
+ {k:['محرك','لا يدور','يدور','وقف','motor','ما يتحرك','ما يمشي','لا يتحرك'],t:'المحرك الذي لا يدور: افحص المنفذ والكابل أولاً',
+  s:['في البريك افتح Port View وتأكد أن المحرك يظهر على المنفذ الصحيح (A–D).','بدّل الكابل بكابل تعرف أنه سليم، ثم جرّب المحرك على منفذ آخر.','تأكد أن حرف المنفذ في البرنامج يطابق المنفذ الفعلي.','حرّك المحرك باليد: إن ظهرت الدرجات في Port View فالمحرك والمستشعر الداخلي سليمان.','إن كان المحرك يعمل ثم يتوقف فقد يكون الحمل كبيراً أو هناك احتكاك في التروس.']},
+ {k:['لون','الوان','مستشعر اللون','color','يقرا','قراءه','خطا'],t:'قراءات اللون الخاطئة سببها غالباً المسافة أو الإضاءة أو الوضع',
+  s:['ضع المستشعر على ارتفاع 5–10 مم من السطح ومتعامداً عليه.','لتتبع الخط استخدم وضع «الضوء المنعكس» (0–100) لا وضع «اللون».','غطِّ المستشعر من ضوء الشمس أو الإضاءة القوية الجانبية.','قِس القيمة على الأسود والأبيض في Port View، واجعل الحد = (أسود + أبيض) ÷ 2.','نظّف عدسة المستشعر من الغبار.']},
+ {k:['جايرو','gyro','زاويه','ينجرف','drift','دوران'],t:'انجراف الجايرو يحدث إذا تحرك الروبوت أثناء المعايرة',
+  s:['اترك الروبوت ساكناً تماماً عند تشغيل البرنامج أو عند وصل كابل الجايرو.','أعد ضبط الجايرو (Reset) في بداية كل مهمة.','إن استمر الانجراف: افصل كابل الجايرو وأعد وصله والروبوت ساكن.','تأكد أن الجايرو مثبت بإحكام ولا يهتز.','في Port View: إن تغيرت الزاوية والروبوت ساكن فالانجراف مؤكد.']},
+ {k:['خط','تتبع','يتذبذب','يهتز','line','يخرج من الخط','kp','pid'],t:'التذبذب على الخط معناه أن Kp كبير أو السرعة عالية',
+  s:['خفّض Kp بنسبة 30% ثم جرّب، وكرّر حتى يقل التذبذب.','خفّض السرعة الأساسية؛ زد Kp فقط إذا كان الروبوت يفلت في المنعطفات.','أضف معامل Kd صغيراً (مثلاً 4×Kp) لتخميد التذبذب.','ضع المستشعر أمام محور العجلات بـ5–8 سم.','تأكد أن الهدف = منتصف قراءة الأسود والأبيض.']},
+ {k:['فوق صوتي','ultrasonic','مسافه','الجدار','يصطدم'],t:'المستشعر فوق الصوتي يخطئ مع الأسطح المائلة أو اللينة',
+  s:['وجّه المستشعر عمودياً على السطح؛ الأسطح المائلة تعكس الموجة بعيداً.','الأقمشة والإسفنج تمتص الموجة؛ جرّب سطحاً صلباً.','المدى الفعّال من 3 إلى 255 سم، والقراءات تحت 5 سم غير موثوقة.','إذا كان هناك روبوت آخر بمستشعر فوق صوتي فقد يحدث تداخل.','خذ متوسط 3 قراءات قبل اتخاذ القرار.']},
+ {k:['بلوتوث','اتصال','usb','يرفع','تحميل','برنامج','classroom','bluetooth','connect'],t:'مشاكل رفع البرنامج تُحل غالباً بالكابل أو تحديث البرنامج الثابت',
+  s:['جرّب كابل USB مباشرة بدل البلوتوث.','أعد تشغيل البريك والكمبيوتر.','حدّث البرنامج الثابت (Firmware) من EV3 Classroom أو EV3 Lab.','للبلوتوث: فعّله من إعدادات البريك وفعّل «Visibility»، ثم أعد الاقتران.','تأكد أن البطارية فوق 50%.']},
+ {k:['بطاريه','يطفي','ينطفي','battery','شحن'],t:'انطفاء البريك أو ضعفه مرتبط بالبطارية',
+  s:['اشحن البطارية بالكامل؛ الجهد الطبيعي فوق 7.5 فولت.','افحص نظافة نقاط التلامس.','إن كنت تستخدم بطاريات AA فاستبدلها كلها معاً.','الحِمل العالي من 4 محركات معاً قد يسبب إعادة تشغيل.']},
+ {k:['مخلب','يمسك','ذراع','claw','grip','المكعب','محرك متوسط'],t:'المخلب لا يمسك المكعب: المشكلة في التوقيت أو القوة',
+  s:['شغّل المحرك المتوسط بقدرة 30–40% حتى «يتوقف» (stall) بدلاً من عدد درجات ثابت.','اقترب من المكعب ببطء وتوقف بحيث يكون في منتصف الفكين.','تأكد أن الفكين مفتوحان كفاية قبل الاقتراب (أوسع من 5 سم).','افحص التروس: الانزلاق يظهر كصوت طقطقة.','في المحاكي: افتح المخلب، تقدّم حتى يدخل المكعب بين الفكين، ثم اضغط الأداة.']},
+ {k:['90','الدوران','يلف','turn','زاويه الدوران','غير دقيق'],t:'الدوران غير الدقيق يُصلح بالجايرو والتباطؤ قرب الهدف',
+  s:['استخدم الجايرو بدلاً من عدد درجات العجلة.','خفّض السرعة عند آخر 20° من الدوران.','درجات العجلة للدوران حول المركز = (عرض المسار ÷ قطر العجلة) × الزاوية.','تأكد أن الأرضية غير زلقة وأن العجلتين نظيفتان.']},
+ {k:['متجمد','علق','شاشه','freeze','hang','لا يستجيب'],t:'البريك المتجمد يحتاج إعادة تشغيل إجبارية',
+  s:['اضغط معاً زر الرجوع والزر الأوسط والزر الأيسر حتى تنطفئ الشاشة.','عند ظهور الشعار أفلت الأزرار.','إن تكرر الأمر فحدّث البرنامج الثابت.']},
+ {k:['يد','ريموت','بلايستيشن','بلستيشن','اكس بوكس','xbox','playstation','controller','gamepad','جويستك'],t:'يد التحكم لا تُكتشف: اضغط زراً بعد التوصيل',
+  s:['وصّل اليد عبر USB أو اقرنها بالبلوتوث في نظام الجهاز.','اضغط أي زر في اليد؛ المتصفح لا يعرض اليد قبل أول ضغطة.','افتح إعدادات «يد التحكم» وتأكد أن الاختبار يُظهر حركة العصوين.','إذا كانت العصا تتحرك وحدها فارفع «المنطقة الميتة» إلى 15–20%.','إن ظهرت رسالة «محجوبة» فافتح الصفحة في نافذة متصفح كاملة أو في التطبيق.']},
+ {k:['لمس','touch','زر المستشعر'],t:'مستشعر اللمس: افحص النابض والتثبيت',
+  s:['في Port View يجب أن تتغير القيمة من 0 إلى 1 عند الضغط.','تأكد أن القطعة الأمامية تضغط الزر بالكامل عند الاصطدام.','استخدم «انتظر حتى يُضغط ثم يُترك» لتجنب التكرار.']},
+ {k:['عالق','جدار','حايط','stuck'],t:'الروبوت عالق في جدار',
+  s:['ارجع للخلف أولاً ثم استدر؛ الدوران وأنت ملاصق للجدار يزيد الاحتكاك.','في المحاكي اضغط «إعادة الحلبة» أو R.','أضف منطقاً في برنامجك: إن بقي مستشعر اللمس مضغوطاً أكثر من ثانية فارجع واستدر.']}];
+function offline(q){const t=nrm(q);let best=null,bs=0;for(const e of KB){let sc=0;for(const k of e.k)if(t.includes(nrm(k)))sc+=k.length>3?2:1;if(sc>bs){bs=sc;best=e}}
+ let a;
+ if(!best)a='**لم أحدد المشكلة بدقة بعد.** ابدأ بهذه الفحوصات العامة:\n1. افتح Port View وتأكد أن كل محرك ومستشعر يظهر على منفذه الصحيح.\n2. اشحن البطارية وأعد تشغيل البريك.\n3. جرّب كل جزء وحده ببرنامج قصير.\n4. صف لي: ماذا يحدث بالضبط؟ وما المنفذ أو المستشعر المعني؟';
+ else a='**'+best.t+'**\n'+best.s.map((x,i)=>(i+1)+'. '+x).join('\n');
+ if(aiCtx==='sim'){const tips=[];
+  if(P.auto&&/خط|تذبذب|يهتز|يخرج/.test(q))tips.push('معامل Kp الحالي '+(S.kp/1000).toFixed(3)+'؛ جرّب '+(S.kp*0.7/1000).toFixed(3)+' من الإعدادات.');
+  if(P.us<80)tips.push('المستشعر فوق الصوتي يقرأ الآن '+Math.round(P.us/10)+' سم، أي يوجد عائق أمامك مباشرة.');
+  if(S.speed<60)tips.push('السرعة القصوى مضبوطة على '+S.speed+'% فقط.');
+  if(pad&&S.gp.dz<8)tips.push('المنطقة الميتة '+S.gp.dz+'% منخفضة وقد تجعل الروبوت يتحرك وحده.');
+  if(tips.length)a+='\n\n**من قراءات المحاكي الآن:**\n'+tips.map(x=>'- '+x).join('\n')}
+ return a+'\n\n_إجابة من الدليل المدمج._'}
+async function aiAsk(q){q=(q||'').trim();if(aiBusy||!q)return;aiBusy=true;$('#aiIn').value='';
+ bubble('u',md(q)+(aiPic?'<p class="pick">مرفق: صورة</p>':''));const out=bubble('a','<p class="pick">يفكّر…</p>');
+ aiTurns.push({role:'user',content:q+(aiCtx==='sim'?'\n\n[قراءات المحاكي الآن]\n'+telemetry():'')+(aiPic?'\n\n(أرفقتُ صورة لروبوتي.)':'')});
+ if(aiS){aiCtl=new AbortController();$('#aiStop').hidden=false;$('#aiSend').disabled=true;
+  try{const o={cache:false,signal:aiCtl.signal,onText:({text})=>{out.innerHTML=md(text);aiLog.scrollTop=aiLog.scrollHeight}};if(aiPic&&aiImgOK)o.images=aiPic;
+   const r=await aiS([{role:'user',content:rules()},...aiTurns.slice(-10)],o);out.innerHTML=md(r.text);aiTurns.push({role:'assistant',content:r.text});
+   if(r.truncated)out.insertAdjacentHTML('beforeend','<p class="pick">انقطع الرد لطوله. اسأل عن جزء محدد.</p>')}
+  catch(e){const code=e&&e.code;if(e&&e.text)out.innerHTML=md(e.text);
+   if(code==='cancelled'){if(!e.text)out.innerHTML='<p class="pick">أوقفت الرد.</p>'}
+   else if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed','session_expired'].includes(code)){aiS=null;setAiMode();const a=offline(q);out.innerHTML=md(a);aiTurns.push({role:'assistant',content:a})}
+   else if(code==='rate_limited')out.insertAdjacentHTML('beforeend','<p class="pick">وصلت إلى حد الاستخدام مؤقتاً. حاول بعد قليل.</p>');
+   else if(code==='image_rejected'||code==='images_unavailable')out.innerHTML='<p class="pick">لم تُقبل الصورة. جرّب صورة JPG أو PNG أصغر، أو اسأل بدون صورة.</p>';
+   else if(code==='refused')out.innerHTML='<p class="pick">لم يستطع المساعد الإجابة عن هذا السؤال. أعد صياغته.</p>';
+   else out.insertAdjacentHTML('beforeend','<p class="pick">تعذّر الوصول إلى المساعد. اضغط «اسأل» مرة أخرى.</p>')}
+  finally{$('#aiStop').hidden=true;$('#aiSend').disabled=false}}
+ else{const a=offline(q);out.innerHTML=md(a);aiTurns.push({role:'assistant',content:a})}
+ aiPic=null;$('#aiPic').value='';$('#aiPicN').textContent='';aiBusy=false;aiLog.scrollTop=aiLog.scrollHeight}
+const CHIPS=['الروبوت لا يمشي مستقيماً','المحرك لا يدور','مستشعر اللون يقرأ خطأ','الجايرو ينجرف','الروبوت يتذبذب على الخط','الدوران 90° غير دقيق','المخلب لا يمسك المكعب','البرنامج لا يرفع للبريك','يد التحكم لا تعمل'];
+$('#aiChips').innerHTML='';for(const c of CHIPS){const b=document.createElement('button');b.type='button';b.textContent=c;b.onclick=()=>aiAsk(c);$('#aiChips').append(b)}
+$('#aiCtx').querySelectorAll('button').forEach(b=>b.onclick=()=>{aiCtx=b.dataset.v;$('#aiCtx').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))});
+$('#aiForm').addEventListener('submit',e=>{e.preventDefault();aiAsk($('#aiIn').value)});
+$('#aiIn').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiAsk($('#aiIn').value)}});
+$('#aiStop').onclick=()=>aiCtl&&aiCtl.abort();
+$('#aiClear').onclick=()=>{if(aiCtl)aiCtl.abort();aiTurns=[];aiLog.innerHTML=''};
+$('#aiPic').onchange=e=>{aiPic=e.target.files[0]||null;$('#aiPicN').textContent=aiPic?aiPic.name.slice(0,28):''};
+(async()=>{try{if(window.claude&&typeof window.claude.use==='function'){aiS=await window.claude.use('sample');if(aiS){const l=await aiS.limits().catch(()=>null);aiImgOK=!!(l&&l.images)}}}catch(e){aiS=null}setAiMode()})();
+
+
+/* ---------- custom robots & arenas ---------- */
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=(v,a,b,d)=>{v=+v;return isFinite(v)?clamp(v,a,b):d};
+function makeModel(o){let kind=['wheels','tracks','balance'].includes(o.kind)?o.kind:'wheels',tool=['claw','lift','horn','auto'].includes(o.tool)?o.tool:'horn',
+  deco=['bulldozer','sumo','track3r','liner'].includes(o.deco)?o.deco:null;
+ let w=Math.round(num(o.width_mm,90,200,126)),L=Math.round(num(o.length_mm,110,240,160)),D=Math.round(num(o.wheel_mm,40,90,56));
+ if(kind==='balance'){w=Math.min(w,130);L=60;tool='horn';deco=null;D=Math.min(D,60)}
+ if(kind==='tracks')D=40;
+ const front=Math.round(L/2),back=-front,bl=kind==='balance'?28:Math.round(clamp(front-10-(back+12),60,104));
+ const m={ar:String(o.name||'روبوتي').slice(0,24),sub:String(o.sub||'صُمّم بالذكاء الاصطناعي').slice(0,44),w,back,front,track:w-14,D,
+  sensorX:kind==='balance'?26:deco==='liner'?front+30:tool==='claw'?front-16:front-8,
+  usX:kind==='balance'?2:(tool==='claw'||tool==='lift')?front-34:front-24,
+  brick:kind==='balance'?[-14,28]:[back+12,bl],maxV:Math.round(num(o.speed_mm_s,200,600,400)),acc:kind==='tracks'?3:4,mass:num(o.mass,.6,3,1),
+  turnK:num(o.turn,.4,.8,.55),kind,tool,deco,holdX:front+(tool==='lift'?44:30),custom:true};
+ if(deco==='liner'&&tool==='auto')m.sensorX=front+30;
+ m.rc=Math.hypot(Math.max(m.front,-m.back),m.w/2)*.8;return m}
+function sanitizeArena(o){o=o||{};const CC=['red','blue','green','yellow'],arr=v=>Array.isArray(v)?v:[];
+ const rect=r=>r&&typeof r==='object'?{x:num(r.x,0,W,0),y:num(r.y,0,H,0),w:num(r.w,10,W,40),h:num(r.h,10,H,40)}:null;
+ const st=o.start||{};
+ const sp={name:String(o.name||'حلبتي').slice(0,28),hint:String(o.hint||'حلبة من تصميمك.').slice(0,170),mode:['free','cubes','maze','laps'].includes(o.mode)?o.mode:'free',
+  bg:/^#[0-9a-f]{6}$/i.test(o.bg||'')?o.bg:'#f2f1ec',
+  walls:arr(o.walls).slice(0,40).map(rect).filter(Boolean),
+  cubes:arr(o.cubes).slice(0,16).map(c=>({c:CC.includes(c&&c.c)?c.c:'red',x:num(c&&c.x,40,W-40,600),y:num(c&&c.y,40,H-40,500)})),
+  zones:arr(o.zones).slice(0,8).map(z=>{const r=rect(z);return r&&{...r,c:CC.includes(z.c)?z.c:'red'}}).filter(Boolean),
+  lines:arr(o.lines).slice(0,6).map(l=>arr(l).slice(0,80).map(p=>[num(p&&p[0],0,W,0),num(p&&p[1],0,H,0)])).filter(l=>l.length>1),
+  start:{x:num(st.x,130,W-130,220),y:num(st.y,130,H-130,H/2),a:num(st.a_deg!=null?st.a_deg:st.a,-360,360,0)},
+  goal:rect(o.goal),checkpoints:arr(o.checkpoints).slice(0,8).map(rect).filter(Boolean),laps:Math.round(num(o.laps,1,5,3))};
+ sp.walls=sp.walls.filter(w=>{const cx=clamp(sp.start.x,w.x,w.x+w.w),cy=clamp(sp.start.y,w.y,w.y+w.h);return Math.hypot(cx-sp.start.x,cy-sp.start.y)>150});
+ sp.cubes=sp.cubes.filter(c=>!sp.walls.some(w=>c.x>w.x-30&&c.x<w.x+w.w+30&&c.y>w.y-30&&c.y<w.y+w.h+30));
+ if(sp.mode==='cubes'&&(!sp.zones.length||!sp.cubes.length))sp.mode='free';
+ if(sp.mode==='maze'&&!sp.goal)sp.mode='free';
+ if(sp.mode==='laps'&&sp.checkpoints.length<2)sp.mode='free';
+ return sp}
+const MODEN={free:'حرة',cubes:'نقل مكعبات',maze:'وصول للهدف',laps:'لفّات'};
+function makeArena(sp){return{ar:sp.name,sub:'من تصميمك · '+MODEN[sp.mode],mode:sp.mode,hint:sp.hint,laps:sp.mode==='laps'?sp.laps:0,custom:true,
+ build(){return{walls:[...BORDER(),...sp.walls.map(w=>R(w.x,w.y,w.w,w.h))],cubes:sp.cubes.map(c=>cb(c.c,c.x,c.y)),zones:sp.zones,goal:sp.goal,cps:sp.checkpoints,
+  start:{x:sp.start.x,y:sp.start.y,a:sp.start.a*Math.PI/180},
+  mat(g){matBase(g,sp.bg);grid(g,'rgba(0,0,0,.06)','rgba(0,0,0,.12)');
+   g.strokeStyle='#18181a';g.lineWidth=20;g.lineJoin='round';g.lineCap='round';for(const l of sp.lines){g.beginPath();g.moveTo(l[0][0],l[0][1]);for(const p of l.slice(1))g.lineTo(p[0],p[1]);g.stroke()}
+   for(const z of sp.zones){g.fillStyle=CUBEC[z.c];g.fillRect(z.x,z.y,z.w,z.h);g.strokeStyle='#ffffff';g.lineWidth=8;g.strokeRect(z.x+4,z.y+4,z.w-8,z.h-8)}
+   if(sp.goal&&sp.mode==='maze'){g.fillStyle='#229648';g.fillRect(sp.goal.x,sp.goal.y,sp.goal.w,sp.goal.h);label(g,'النهاية',sp.goal.x+sp.goal.w/2,sp.goal.y+sp.goal.h/2,36,'#ffffff')}
+   if(sp.mode==='laps')sp.checkpoints.forEach((c,i)=>{const last=i===sp.checkpoints.length-1;g.setLineDash([16,12]);g.strokeStyle=last?'#18181a':'rgba(0,0,0,.35)';g.lineWidth=4;g.strokeRect(c.x,c.y,c.w,c.h);g.setLineDash([]);label(g,last?'النهاية':String(i+1),c.x+c.w/2,c.y+c.h/2,30,'rgba(0,0,0,.45)')});
+   g.strokeStyle='#9aa0a6';g.setLineDash([20,14]);g.lineWidth=4;g.strokeRect(sp.start.x-150,sp.start.y-130,300,260);g.setLineDash([])}}}}}
+S.cr=S.cr||{};S.ca=S.ca||{};
+for(const k in S.cr){try{MODELS[k]=makeModel(S.cr[k])}catch(e){delete S.cr[k]}}
+for(const k in S.ca){try{ARENAS[k]=makeArena(sanitizeArena(S.ca[k]))}catch(e){delete S.ca[k]}}
+function refreshKeys(){MKEYS=Object.keys(MODELS);AKEYS=Object.keys(ARENAS);AKEYS=['eco',...AKEYS.filter(k=>k!=='eco')]}
+if(!S.v3){S.v3=1;S.arena='eco';save()}
+if(!S.v2){S.v2=1;S.drive='screen';if(S.cam3==='chase'||S.cam3==='fpv')S.cam3='fixed';save()}
+refreshKeys();if(!MODELS[S.model])S.model='gripper';if(!ARENAS[S.arena])S.arena='cubes';
+function delCustom(kind,k){if(kind==='r'){delete S.cr[k];delete MODELS[k];if(S.model===k)S.model='gripper'}else{delete S.ca[k];delete ARENAS[k];if(S.arena===k)S.arena='cubes'}
+ refreshKeys();save();renderRobots();renderArenas();if(!menuOpen)loadArena()}
+
+/* ---------- offline generators (used outside Claude) ---------- */
+function rng(seed){let s=seed|0;return()=>{s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function procRobot(text){const t=nrm(text),has=(...w)=>w.some(x=>t.includes(nrm(x)));
+ const o={name:'',sub:'',kind:'wheels',tool:'horn',deco:'none',width_mm:126,length_mm:160,wheel_mm:56,speed_mm_s:420,mass:1,turn:.55};
+ if(has('جنزير','جنازير','مجنزر','جنزر','دبابه','track'))Object.assign(o,{kind:'tracks',speed_mm_s:300,mass:1.6,turn:.45});
+ if(has('توازن','يوازن','عجلتين','balance'))Object.assign(o,{kind:'balance',speed_mm_s:360,turn:.7,mass:.8});
+ if(has('مخلب','يمسك','ماسك','claw','gripper'))o.tool='claw';
+ if(has('شوكه','رافعه','يرفع','fork','lift'))o.tool='lift';
+ if(has('خط','تتبع','line'))Object.assign(o,{tool:'auto',deco:'liner'});
+ if(has('جرافه','شفره','يدفع','bulldozer'))Object.assign(o,{deco:'bulldozer',width_mm:176});
+ if(has('سومو','اسفين','قتال','sumo'))Object.assign(o,{deco:'sumo',mass:2.2,width_mm:150});
+ if(has('سريع','سرعه','fast'))o.speed_mm_s=Math.min(600,o.speed_mm_s+150);
+ if(has('بطيء','بطي','slow'))o.speed_mm_s=Math.max(200,o.speed_mm_s-120);
+ if(has('ثقيل','قوي','heavy'))o.mass=Math.min(3,o.mass+.8);
+ if(has('كبير','ضخم','big'))Object.assign(o,{width_mm:Math.min(200,o.width_mm+40),length_mm:210,wheel_mm:o.kind==='wheels'?81:o.wheel_mm});
+ if(has('صغير','مدمج','small'))Object.assign(o,{width_mm:100,length_mm:130,wheel_mm:43});
+ if(has('عجلات كبيره','عجله كبيره'))o.wheel_mm=81;
+ const names={claw:'ماسك',lift:'رافع',auto:'متتبع',horn:'مستكشف'};o.name=(names[o.tool]||'روبوت')+' '+(o.kind==='tracks'?'مجنزر':o.kind==='balance'?'متوازن':'')+(o.deco==='sumo'?' مقاتل':'');
+ o.name=o.name.trim();o.sub=text.trim().slice(0,40);return o}
+function procArena(text){const t=nrm(text),has=(...w)=>w.some(x=>t.includes(nrm(x))),r=rng((Math.random()*1e9)|0),rn=(a,b)=>a+r()*(b-a);
+ const CC=['red','blue','green','yellow'];let o={name:'',hint:'',mode:'free',bg:'#f2f1ec',walls:[],cubes:[],zones:[],lines:[],start:{x:200,y:H/2,a_deg:0}};
+ if(has('متاهه','maze')){const cols=7,rows=3,cw=W/cols,ch=H/rows,tt=18,mz=genMaze(cols,rows,(r()*1e9)|0);
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){if(x<cols-1&&mz.E[y][x])o.walls.push({x:(x+1)*cw-tt/2,y:y*ch-tt/2,w:tt,h:ch+tt});if(y<rows-1&&mz.S[y][x])o.walls.push({x:x*cw-tt/2,y:(y+1)*ch-tt/2,w:cw+tt,h:tt})}
+  Object.assign(o,{mode:'maze',name:'متاهة مولّدة',hint:'اخرج إلى المربع الأخضر.',goal:{x:(cols-1)*cw+30,y:(rows-1)*ch+30,w:cw-60,h:ch-60},start:{x:cw/2,y:ch/2,a_deg:0},bg:'#f4f3ee'})}
+ else if(has('سباق','لفه','لفات','race')){Object.assign(o,{mode:'laps',name:'حلبة سباق مولّدة',hint:'أكمل 3 لفّات حول الجزيرة وتجنّب العوائق.',bg:'#e8e6df',laps:3,start:{x:400,y:190,a_deg:0}});
+  o.walls.push({x:520,y:400,w:1320,h:343});for(let i=0;i<4;i++){const top=r()<.5;o.walls.push({x:rn(800,1700),y:top?0:250,w:40,h:130});o.walls.push({x:rn(700,1700),y:top?1013:763,w:40,h:130})}
+  o.checkpoints=[{x:1840,y:500,w:522,h:140},{x:1100,y:743,w:40,h:400},{x:0,y:500,w:520,h:140},{x:590,y:0,w:40,h:400}]}
+ else if(has('مكعب','مكعبات','نقل','cube')){const n=Math.round(rn(5,9));Object.assign(o,{mode:'cubes',name:'مهمة مكعبات مولّدة',hint:'انقل كل مكعب إلى المنطقة التي بلونه خلال 120 ثانية.'});
+  CC.forEach((c,i)=>o.zones.push({c,x:2070,y:40+i*275,w:250,h:230}));for(let i=0;i<n;i++)o.cubes.push({c:CC[i%4],x:rn(650,1750),y:rn(120,H-120)});
+  for(let i=0;i<2;i++)o.walls.push({x:rn(700,1600),y:rn(150,900),w:r()<.5?40:260,h:r()<.5?260:40})}
+ else{Object.assign(o,{name:'ساحة مولّدة',hint:'تدرّب على تجنّب العوائق وتتبّع الخط.'});
+  for(let i=0;i<7;i++)o.walls.push({x:rn(500,2100),y:rn(60,1000),w:r()<.5?rn(40,60):rn(150,320),h:r()<.5?rn(150,320):rn(40,60)});
+  const cx=W/2+100,cy=H/2,pts=[];for(let i=0;i<=40;i++){const a=i/40*Math.PI*2;pts.push([cx+Math.cos(a)*(820+60*Math.sin(a*3)),cy+Math.sin(a)*(380+40*Math.cos(a*2))])}o.lines.push(pts);
+  for(let i=0;i<4;i++)o.cubes.push({c:CC[i],x:rn(600,2100),y:rn(150,1000)})}
+ if(has('خط')&&!o.lines.length){const pts=[];for(let i=0;i<=30;i++){const a=i/30*Math.PI*2;pts.push([W/2+Math.cos(a)*900,H/2+Math.sin(a)*400])}o.lines.push(pts)}
+ if(has('ليل','داكن','اسود'))o.bg='#c9ccd0';if(has('صحراء','رمل'))o.bg='#e9dcc0';if(has('عشب','حديقه'))o.bg='#d7e6cc';
+ o.name=text.trim().slice(0,28)||o.name;return o}
+
+/* ---------- AI generation ---------- */
+const GEN_ROBOT='صمّم روبوت LEGO EV3 مجمّعاً لمحاكي ثنائي المحرّك حسب وصف المستخدم أدناه. أعد JSON فقط بهذا الشكل:\n{"name":"اسم عربي قصير (حتى 3 كلمات)","sub":"وصف عربي من 4 إلى 6 كلمات","kind":"wheels|tracks|balance","tool":"claw|lift|horn|auto","deco":"none|bulldozer|sumo|track3r|liner","width_mm":90-200,"length_mm":110-240,"wheel_mm":40-90,"speed_mm_s":200-600,"mass":0.6-3,"turn":0.4-0.8}\nالمعاني: claw مخلب يمسك مكعباً، lift شوكة رافعة، auto متتبع خط آلي، horn بلا أداة. bulldozer شفرة دفع عريضة، sumo إسفين أمامي، liner ذراع مستشعر أمامية. اجعل القيم واقعية لقطع EV3: عجلة 56 مم شائعة و81 مم للكبيرة، والسرعة القصوى للمحرك الكبير قرابة 450 مم/ث بعجلة 56 مم.\nالوصف: ';
+const GEN_ARENA='صمّم حلبة لمحاكي روبوت EV3 حسب وصف المستخدم أدناه. البساط 2362×1143 مم، المحور x من اليسار والمحور y من الأعلى، والجدران الخارجية موجودة مسبقاً. أعد JSON فقط بهذا الشكل:\n{"name":"اسم عربي قصير","hint":"جملة عربية تشرح المهمة","mode":"free|cubes|maze|laps","bg":"#rrggbb فاتح","walls":[{"x":0,"y":0,"w":40,"h":300}],"cubes":[{"c":"red|blue|green|yellow","x":0,"y":0}],"zones":[{"c":"red","x":0,"y":0,"w":250,"h":230}],"lines":[[[x,y],[x,y]]],"start":{"x":200,"y":570,"a_deg":0},"goal":{"x":0,"y":0,"w":200,"h":200},"checkpoints":[{"x":0,"y":0,"w":40,"h":380}],"laps":3}\nالقواعد: حتى 30 جداراً بسماكة 20 إلى 60 مم؛ اترك ممرات لا تقل عن 280 مم حتى يمر الروبوت؛ لا تضع جداراً ضمن 200 مم من نقطة البداية؛ المكعبات 50 مم وحتى 12 مكعباً؛ zones مطلوبة مع mode=cubes (منطقة لكل لون مستخدم)؛ goal مطلوب مع mode=maze؛ checkpoints مرتبة مع mode=laps وآخرها خط النهاية بقرب البداية؛ lines خطوط سوداء بعرض 20 مم لتتبع الخط، كل خط قائمة نقاط متقاربة. a_deg صفر يعني الاتجاه نحو اليمين.\nالوصف: ';
+async function generate(kind){const inp=$(kind==='r'?'#genR':'#genA'),btn=$(kind==='r'?'#genRB':'#genAB'),st=$(kind==='r'?'#genRS':'#genAS'),q=inp.value.trim();
+ if(!q){st.textContent='اكتب وصفاً أولاً، مثل: '+(kind==='r'?'روبوت مجنزر سريع بمخلب':'متاهة صعبة بخلفية رملية');inp.focus();return}
+ btn.disabled=true;let spec=null,via='';
+ if(aiS){st.textContent='يصمّم Claude الآن… قد يستغرق ذلك حتى دقيقة.';
+  try{spec=await aiS.json((kind==='r'?GEN_ROBOT:GEN_ARENA)+q,{cache:false});via='Claude'}
+  catch(e){const c=e&&e.code;if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(c)){aiS=null;setAiMode()}
+   st.textContent=c==='rate_limited'?'وصلت إلى حد الاستخدام مؤقتاً، استخدمت المولّد المدمج بدلاً منه.':'تعذّر التصميم عبر Claude، استخدمت المولّد المدمج.'}}
+ const sw=[W,H];W=DEF_W;H=DEF_H;
+ if(!spec||typeof spec!=='object'){spec=kind==='r'?procRobot(q):procArena(q);via=via||'المولّد المدمج'}
+ const key='c_'+kind+'_'+Date.now().toString(36);
+ try{if(kind==='r'){MODELS[key]=makeModel(spec);S.cr[key]=spec;S.model=key}else{const sp=sanitizeArena(spec);ARENAS[key]=makeArena(sp);S.ca[key]=sp;S.arena=key}}
+ catch(e){W=sw[0];H=sw[1];st.textContent='لم أستطع بناء التصميم. جرّب وصفاً أبسط.';btn.disabled=false;return}
+ W=sw[0];H=sw[1];
+ refreshKeys();save();renderRobots();renderArenas();if(!menuOpen)loadArena();
+ const nm=kind==='r'?MODELS[key].ar:ARENAS[key].ar;st.textContent='جاهز: «'+nm+'» ('+via+'). اخترته لك'+(menuOpen?'.':' وأعدت تحميل الحلبة.');inp.value='';btn.disabled=false}
+
+/* ---------- start menu ---------- */
+let menuOpen=false;
+function openMenu(){menuOpen=true;$('#menu').hidden=false;renderRobots(true);renderArenas(true);renderColors();$('#mGenNote').textContent=aiS?'يصمّم Claude الروبوت أو الحلبة من وصفك ويضيفها إلى القائمة.':'خارج Claude يعمل مولّد مدمج يبني التصميم من الكلمات المفتاحية في وصفك.'}
+function closeMenu(){menuOpen=false;$('#menu').hidden=true;renderRobots(true);renderArenas();loadArena();resize()}
+function previewRobot(c,k){const m=MODELS[k];const w=c.clientWidth||140,h=70;c.width=w*DPR;c.height=h*DPR;const g=c.getContext('2d');g.setTransform(DPR,0,0,DPR,0,0);g.clearRect(0,0,w,h);
+ const len=(m.tool==='claw'?m.front+50:m.tool==='lift'?m.front+90:m.front),ext=Math.max(len,m.sensorX+10),sc=Math.min((w-10)/(m.w+10),(h-8)/(ext-m.back+10))*.95;
+ g.translate(w/2,h/2+((ext+m.back)/2)*sc);g.scale(sc,sc);g.rotate(-Math.PI/2);drawRobot(g,k,{color:S.color,toolA:0,sL:0,sR:0,held:null,hornT:0,led:'#3ddc84',senseCol:'#d62c28'})}
+function renderRobots(force){const sig=MKEYS.join();
+ for(const box of [$('#robots'),$('#mRobots')]){if(force||box.dataset.sig!==sig){box.dataset.sig=sig;
+   box.innerHTML=MKEYS.map(k=>`<button type="button" class="rc" data-k="${k}"><canvas></canvas><b>${esc(MODELS[k].ar)}</b><span>${esc(MODELS[k].sub)}</span>${MODELS[k].custom?`<span class="del" data-del="${k}">حذف</span>`:''}</button>`).join('');
+   box.querySelectorAll('.rc').forEach(b=>b.onclick=e=>{const d=e.target.closest('[data-del]');if(d){e.stopPropagation();delCustom('r',d.dataset.del);return}S.model=b.dataset.k;save();setStyle(MODELS[S.model].hub==='spike'?'spike':'ev3');renderRobots();if(!menuOpen)loadArena()})}
+  box.querySelectorAll('.rc').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.k===S.model));previewRobot(b.querySelector('canvas'),b.dataset.k)})}
+ set('robotSub',esc(MODELS[S.model].ar))}
+function renderColors(){for(const [id,nid] of [['#colors','#colName'],['#mColors','#mColName']]){const box=$(id);
+  if(!box.children.length){box.innerHTML=BODY.map(c=>`<button type="button" class="cs" data-c="${c[0]}" style="background:${c[0]}" aria-label="${c[1]}"></button>`).join('');
+   box.querySelectorAll('.cs').forEach(b=>b.onclick=()=>{S.color=b.dataset.c;save();if(P)P.color=S.color;if(O)O.color=oppColor();renderColors();renderRobots()})}
+  box.querySelectorAll('.cs').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.c===S.color)));const n=BODY.find(c=>c[0]===S.color);$(nid).textContent='اللون المختار: '+(n?n[1]:'')}}
+function renderArenas(force){const sig=AKEYS.join();
+ for(const box of [$('#arenas'),$('#mArenas')]){if(force||box.dataset.sig!==sig){box.dataset.sig=sig;
+   box.innerHTML=AKEYS.map(k=>`<button type="button" class="ar" data-k="${k}"><canvas width="128" height="62"></canvas><div><b>${esc(ARENAS[k].ar)}</b><span>${esc(ARENAS[k].sub)}</span>${ARENAS[k].custom?`<span class="del" data-del="${k}">حذف</span>`:''}</div></button>`).join('');
+   box.querySelectorAll('.ar').forEach(b=>{b.onclick=e=>{const d=e.target.closest('[data-del]');if(d){e.stopPropagation();delCustom('a',d.dataset.del);return}S.arena=b.dataset.k;save();renderArenas();if(!menuOpen)loadArena()};
+    const sw=[W,H];try{setSize(ARENAS[b.dataset.k]);const g=b.querySelector('canvas').getContext('2d'),a=ARENAS[b.dataset.k].build();g.setTransform(128/W,0,0,62/H,0,0);a.mat(g);
+     for(const w of a.walls){g.fillStyle=WALLC[w.col][0];g.fillRect(w.x,w.y,w.w,w.h)}for(const c of a.cubes){g.fillStyle=CUBEC[c.c];g.fillRect(c.x-30,c.y-30,60,60)}}catch(e){}W=sw[0];H=sw[1];})}
+  box.querySelectorAll('.ar').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===S.arena)))}}
+$('#btnMenu').onclick=openMenu;$('#mStart').onclick=closeMenu;
+$('#genRB').onclick=()=>generate('r');$('#genAB').onclick=()=>generate('a');
+for(const [i,b] of [['#genR','#genRB'],['#genA','#genAB']])$(i).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$(b).click()}});
+
+
+/* ---------- block programming (SPIKE / EV3 Classroom style) ---------- */
+const PCAT={ev:['الأحداث','#ffbf00','#cc9900'],mv:['الحركة','#ff4ccd','#c73aa0'],mo:['المحركات','#0090f5','#0071c2'],se:['المستشعرات','#4cbfe6','#2e9cc2'],
+ co:['التحكم','#ffab19','#cf8b17'],li:['الشاشة والضوء','#9966ff','#774dcb'],so:['الصوت','#cf63cf','#a34fa3']};
+const UNITS=[['cm','سم'],['sec','ثوانٍ'],['deg','درجات'],['rot','دورات']];
+const COLOPT=[['black','أسود'],['white','أبيض'],['red','أحمر'],['green','أخضر'],['blue','أزرق'],['yellow','أصفر'],['brown','بني'],['none','لا لون']];
+const isSp=()=>S.pstyle==='spike';
+const senseOpts=()=>isSp()?[['color','لون المستشعر C'],['refl','الضوء المنعكس C (%)'],['dist','المسافة D (سم)'],['touch','مستشعر القوة B'],['gyro','زاوية الدوران (الوحدة)'],['timer','المؤقت (ث)']]
+ :[['color','لون المستشعر 3'],['refl','الضوء المنعكس 3 (%)'],['dist','المسافة 4 (سم)'],['touch','مستشعر اللمس 1'],['gyro','زاوية الجايرو 2'],['timer','المؤقت (ث)']];
+const motorPorts=()=>isSp()?['A','B','C','D','E','F']:['A','B','C','D'];
+const C0={cs:'color',co:'=',cc:'black',cv:50,ct:'on'};
+const BL={
+ start:{cat:'ev',hat:1,txt:'عند بدء البرنامج'},
+ speed:{cat:'mv',txt:'اضبط سرعة الحركة على {n}%',f:{n:50}},
+ move:{cat:'mv',txt:'تحرك {dir} لمدة {n} {unit}',f:{dir:'fwd',n:10,unit:'cm'}},
+ moveSteer:{cat:'mv',txt:'تحرك بتوجيه {s} لمدة {n} {unit}',f:{s:30,n:10,unit:'cm'}},
+ startMove:{cat:'mv',txt:'ابدأ التحرك بتوجيه {s}',f:{s:0}},
+ stopMove:{cat:'mv',txt:'أوقف الحركة'},
+ tank:{cat:'mv',txt:'تحرك بدبابة يسار {a}% يمين {b}% لمدة {n} {unit}',f:{a:50,b:50,n:1,unit:'sec'}},
+ turn:{cat:'mv',txt:'استدر {side} {n}° بالجايرو',f:{side:'right',n:90}},
+ follow:{cat:'mv',txt:'تتبّع الخط حتى التقاطع رقم {n}',f:{n:1}},
+ followD:{cat:'mv',txt:'تتبّع الخط لمسافة {n} سم',f:{n:20}},
+ tool:{cat:'mo',txt:'المحرك {port}: {act}',f:{port:'A',act:'on'}},
+ motor:{cat:'mo',txt:'شغّل المحرك {port} {rot} لمدة {n} ثوانٍ',f:{port:'A',rot:'cw',n:1}},
+ resetG:{cat:'se',txt:'اضبط زاوية الدوران على 0'},
+ resetT:{cat:'se',txt:'أعد ضبط المؤقت'},
+ wait:{cat:'co',txt:'انتظر {n} ثوانٍ',f:{n:1}},
+ waitUntil:{cat:'co',txt:'انتظر حتى {cond}',f:{...C0}},
+ repeat:{cat:'co',c:1,txt:'كرّر {n} مرات',f:{n:4}},
+ forever:{cat:'co',c:1,txt:'كرّر للأبد'},
+ repeatUntil:{cat:'co',c:1,txt:'كرّر حتى {cond}',f:{...C0}},
+ if:{cat:'co',c:1,txt:'إذا {cond} فإن',f:{...C0}},
+ ifElse:{cat:'co',c:2,txt:'إذا {cond} فإن',f:{...C0}},
+ stopProg:{cat:'co',txt:'أوقف البرنامج'},
+ show:{cat:'li',txt:'اكتب {txt} على الشاشة',f:{txt:'مرحباً'}},
+ beep:{cat:'so',txt:'شغّل نغمة {note} لمدة {n} ثانية',f:{note:'C5',n:.3}}};
+const FSEL={dir:[['fwd','للأمام'],['bwd','للخلف']],unit:UNITS,side:[['right','يميناً'],['left','يساراً']],rot:[['cw','↻ مع عقارب الساعة'],['ccw','↺ عكس عقارب الساعة']],
+ act:[['on','أغلق المخلب / ارفع'],['off','افتح المخلب / أنزل']],note:[['C4','دو 4'],['E4','مي 4'],['G4','صول 4'],['C5','دو 5'],['E5','مي 5'],['G5','صول 5']]};
+const NOTEF={C4:262,E4:330,G4:392,C5:523,E5:659,G5:784};
+const nb=t=>({t,f:BL[t].f?JSON.parse(JSON.stringify(BL[t].f)):{},...(BL[t].c?{b:[]}:{}),...(BL[t].c===2?{e:[]}:{})});
+S.pstyle=S.pstyle||'ev3';
+let PROG;try{PROG=Array.isArray(S.prog)?S.prog:null}catch(e){PROG=null}
+if(!PROG)PROG=[nb('speed'),nb('move')];
+let CUR={arr:PROG,i:PROG.length},pcat='mv';
+const PR={running:false,gen:null,inp:{l:0,r:0},speed:50,cur:null,dt:0,t:0,g0:0};
+function saveProg(){S.prog=PROG;save()}
+
+/* editor */
+function fieldEl(b,k){const f=b.f,mk=(tag)=>{const e=document.createElement(tag);e.className='bf';return e};
+ if(k==='cond'){const w=document.createElement('span');w.className='bcond';const sel=mk('select');for(const [v,t] of senseOpts())sel.add(new Option(t,v,false,f.cs===v));
+  sel.onchange=()=>{f.cs=sel.value;saveProg();renderProg()};w.append(sel);
+  if(f.cs==='color'){const op=mk('select');for(const v of ['=','≠'])op.add(new Option(v,v,false,f.co===v));op.onchange=()=>{f.co=op.value;saveProg()};
+   const c=mk('select');for(const [v,t] of COLOPT)c.add(new Option(t,v,false,f.cc===v));c.onchange=()=>{f.cc=c.value;saveProg()};w.append(op,c)}
+  else if(f.cs==='touch'){const t=mk('select');t.add(new Option('مضغوط','on',false,f.ct!=='off'));t.add(new Option('غير مضغوط','off',false,f.ct==='off'));t.onchange=()=>{f.ct=t.value;saveProg()};w.append(t)}
+  else{const op=mk('select');for(const v of ['<','>','='])op.add(new Option(v,v,false,f.co===v));op.onchange=()=>{f.co=op.value;saveProg()};
+   const n=mk('input');n.type='number';n.value=f.cv;n.step='any';n.oninput=()=>{f.cv=+n.value;saveProg()};w.append(op,n)}
+  return w}
+ if(k==='port'){const e=mk('select');for(const v of motorPorts())e.add(new Option(v,v,false,f.port===v));e.onchange=()=>{f.port=e.value;saveProg()};return e}
+ if(FSEL[k]){const e=mk('select');for(const [v,t] of FSEL[k])e.add(new Option(t,v,false,f[k]===v));e.onchange=()=>{f[k]=e.value;saveProg()};return e}
+ const e=mk('input');if(k==='txt'){e.type='text';e.value=f.txt;e.oninput=()=>{f.txt=e.value;saveProg()}}else{e.type='number';e.step='any';e.value=f[k];e.oninput=()=>{f[k]=+e.value;saveProg()}}
+ e.onclick=ev=>ev.stopPropagation();return e}
+function blockHead(b,inPal){const d=BL[b.t],h=document.createElement('div');h.className='bh';
+ const parts=d.txt.split(/(\{\w+\})/);for(const p of parts){const m=/^\{(\w+)\}$/.exec(p);if(m){if(inPal){const s=document.createElement('span');s.className='bf ghost';
+   const k=m[1],v=k==='cond'?'شرط':k==='port'?b.f.port:FSEL[k]?(FSEL[k].find(x=>x[0]===b.f[k])||['',''])[1]:b.f[k];s.textContent=v;h.append(s)}else h.append(fieldEl(b,m[1]))}
+  else if(p)h.append(document.createTextNode(p))}
+ if(!inPal&&b.t==='turn'&&isSp())h.title='في SPIKE: يستخدم مستشعر الحركة في الوحدة';return h}
+function slot(arr,i){const s=document.createElement('button');s.type='button';s.className='slot'+(CUR.arr===arr&&CUR.i===i?' on':'');s.title='أضف الكتلة التالية هنا';
+ s.textContent=CUR.arr===arr&&CUR.i===i?'الكتلة التالية تُضاف هنا':'';s.onclick=()=>{CUR={arr,i};renderProg()};return s}
+function listEl(arr){const w=document.createElement('div');w.className='blist';w.append(slot(arr,0));
+ arr.forEach((b,i)=>{w.append(blockEl(b,arr,i));w.append(slot(arr,i+1))});return w}
+function blockEl(b,arr,i){const d=BL[b.t],c=PCAT[d.cat],el=document.createElement('div');el.className='blk'+(d.c?' cblk':'')+(PR.cur===b&&PR.running?' run':'');
+ el.style.setProperty('--bc',c[1]);el.style.setProperty('--bd',c[2]);const top=document.createElement('div');top.className='btop';top.append(blockHead(b));
+ const tools=document.createElement('span');tools.className='btools';
+ for(const [t,lbl,fn] of [['↑','تحريك لأعلى',()=>{if(i>0){[arr[i-1],arr[i]]=[arr[i],arr[i-1]]}}],['↓','تحريك لأسفل',()=>{if(i<arr.length-1){[arr[i+1],arr[i]]=[arr[i],arr[i+1]]}}],['✕','حذف',()=>{arr.splice(i,1);CUR={arr:PROG,i:PROG.length}}]]){
+  const x=document.createElement('button');x.type='button';x.textContent=t;x.title=lbl;x.setAttribute('aria-label',lbl);x.onclick=ev=>{ev.stopPropagation();fn();saveProg();renderProg()};tools.append(x)}
+ top.append(tools);el.append(top);
+ if(d.c){const inner=document.createElement('div');inner.className='binner';inner.append(listEl(b.b));el.append(inner);
+  if(d.c===2){const lab=document.createElement('div');lab.className='btop belse';lab.textContent='وإلا';el.append(lab);const in2=document.createElement('div');in2.className='binner';in2.append(listEl(b.e));el.append(in2)}
+  const foot=document.createElement('div');foot.className='bfoot';el.append(foot)}
+ return el}
+function renderProg(){const box=$('#pProg');box.innerHTML='';const hat=document.createElement('div');hat.className='blk hat';const c=PCAT.ev;hat.style.setProperty('--bc',c[1]);hat.style.setProperty('--bd',c[2]);
+ hat.innerHTML='<div class="btop"><div class="bh">'+(isSp()?'عند بدء البرنامج':'عند بدء البرنامج')+'</div></div>';box.append(hat,listEl(PROG));
+ set('progStyleLbl',isSp()?'بصيغة SPIKE · المنافذ A–F':'بصيغة EV3 Classroom · المنافذ A–D و1–4');
+ $('#pRun').textContent=PR.running?'إيقاف ■':'تشغيل ▶';const pr=$('#pyRun');if(pr)pr.textContent=PR.running?'إيقاف ■':'تشغيل ▶';$('#pRunHud').textContent=PR.running?'■ إيقاف البرنامج':'▶ تشغيل البرنامج';$('#pRunHud').classList.toggle('on',PR.running)}
+function renderPalette(){const cats=$('#pCats');cats.innerHTML='';for(const k of ['mv','mo','se','co','li','so']){const b=document.createElement('button');b.type='button';b.className='pcat';
+  b.style.setProperty('--bc',PCAT[k][1]);b.setAttribute('aria-pressed',String(pcat===k));b.innerHTML='<i></i>'+PCAT[k][0];b.onclick=()=>{pcat=k;renderPalette()};cats.append(b)}
+ const pal=$('#pPal');pal.innerHTML='';for(const t in BL){if(BL[t].cat!==pcat)continue;const d=BL[t],c=PCAT[d.cat],el=document.createElement('button');el.type='button';el.className='blk pal'+(d.c?' cblk':'');
+  el.style.setProperty('--bc',c[1]);el.style.setProperty('--bd',c[2]);const top=document.createElement('div');top.className='btop';top.append(blockHead(nb(t),true));el.append(top);
+  if(d.c){const i=document.createElement('div');i.className='binner mini';el.append(i);const f=document.createElement('div');f.className='bfoot';el.append(f)}
+  el.title='اضغط لإضافتها';el.onclick=()=>{const nbk=nb(t);CUR.arr.splice(CUR.i,0,nbk);CUR.i++;saveProg();renderProg()};pal.append(el)}}
+function setStyle(v){S.pstyle=v;save();$('#segPStyle').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)));renderPalette();renderProg()}
+$('#segPStyle').querySelectorAll('button').forEach(b=>b.onclick=()=>setStyle(b.dataset.v));
+
+/* interpreter */
+function steerLR(sv){sv=clamp(+sv||0,-100,100);return sv>=0?[1,1-sv/50]:[1+sv/50,1]}
+function setDrive(l,r){PR.inp={l:clamp(l,-1,1),r:clamp(r,-1,1)}}
+function* waitT(s){let t=0;while(t<s&&PR.running){t+=PR.dt;yield}}
+function wheelDeg(){const m=MODELS[P.key];return(Math.abs(P.sL-PR.sL0)+Math.abs(P.sR-PR.sR0))/2/(Math.PI*m.D)*360}
+function* driveFor(l,r,n,unit){const k=PR.speed/100;PR.sL0=P.sL;PR.sR0=P.sR;let t=0;n=Math.abs(+n||0);
+ const done=()=>unit==='sec'?t>=n:unit==='cm'?(Math.abs(P.sL-PR.sL0)+Math.abs(P.sR-PR.sR0))/2>=n*10:unit==='deg'?wheelDeg()>=n:wheelDeg()>=n*360;
+ while(PR.running&&!done()){setDrive(l*k,r*k);t+=PR.dt;yield}setDrive(0,0);yield}
+function darkAt(lx,ly){const ca=Math.cos(P.a),sa=Math.sin(P.a),rgb=sample(P.x+ca*lx-sa*ly,P.y+sa*lx+ca*ly);return rgb&&(.3*rgb[0]+.59*rgb[1]+.11*rgb[2])<80}
+function* followLine(stopFn){const m=MODELS[P.key],k=PR.speed/100;let inX=true;
+ while(PR.running){const both=darkAt(m.sensorX,-45)&&darkAt(m.sensorX,45);if(both&&!inX){inX=true;if(stopFn('x'))break}if(!both&&!darkAt(m.sensorX,-45)&&!darkAt(m.sensorX,45))inX=false;
+  if(stopFn('d'))break;const e=P.refl-50,tu=clamp(S.kp/1000*e,-1,1),th=.55;let l=th+tu,r=th-tu;const mx=Math.max(1,Math.abs(l),Math.abs(r));setDrive(l/mx*k,r/mx*k);yield}
+ setDrive(0,0);yield}
+function cond(f){if(f.cs==='color')return(P.sense.k===f.cc)!==(f.co==='≠');if(f.cs==='touch')return(P.bumpT>0)===(f.ct!=='off');
+ const x=f.cs==='refl'?P.refl:f.cs==='dist'?P.us/10:f.cs==='gyro'?(P.a-PR.g0)*180/Math.PI:PR.t,v=+f.cv;return f.co==='<'?x<v:f.co==='>'?x>v:Math.abs(x-v)<1}
+function setToolState(v){if(MODELS[P.key].tool!=='claw'&&MODELS[P.key].tool!=='lift'){beep(700,.1);return}if(P.tool!==v)act('tool')}
+function* execList(list){for(const b of list){if(!PR.running)return;PR.cur=b;markRun();yield* execBlock(b)}}
+function* execBlock(b){const f=b.f;switch(b.t){
+ case 'speed':PR.speed=clamp(+f.n,0,100);break;
+ case 'move':{const s=f.dir==='bwd'?-1:1;yield* driveFor(s,s,f.n,f.unit);break}
+ case 'moveSteer':{const [l,r]=steerLR(f.s),s=(+f.n<0)?-1:1;yield* driveFor(l*s,r*s,f.n,f.unit);break}
+ case 'startMove':{const [l,r]=steerLR(f.s);setDrive(l*PR.speed/100,r*PR.speed/100);yield;break}
+ case 'stopMove':setDrive(0,0);yield;break;
+ case 'tank':{let t=0;PR.sL0=P.sL;PR.sR0=P.sR;const n=Math.abs(+f.n||0),u=f.unit;
+  const done=()=>u==='sec'?t>=n:u==='cm'?(Math.abs(P.sL-PR.sL0)+Math.abs(P.sR-PR.sR0))/2>=n*10:u==='deg'?wheelDeg()>=n:wheelDeg()>=n*360;
+  while(PR.running&&!done()){setDrive(+f.a/100,+f.b/100);t+=PR.dt;yield}setDrive(0,0);yield;break}
+ case 'turn':{const a0=P.a,tg=Math.abs(+f.n)*Math.PI/180,sg=f.side==='right'?1:-1,k=PR.speed/100;
+  while(PR.running){const rem=tg-Math.abs(P.a-a0);if(rem<=.004)break;const v=k*clamp(rem/.5,.18,1);setDrive(sg*v,-sg*v);yield}setDrive(0,0);yield* waitT(.12);break}
+ case 'follow':{let c=0;const n=Math.max(1,Math.round(+f.n||1));yield* followLine(k=>k==='x'&&++c>=n);break}
+ case 'followD':{const s0=(P.sL+P.sR)/2,d=Math.abs(+f.n)*10;yield* followLine(k=>k==='d'&&Math.abs((P.sL+P.sR)/2-s0)>=d);break}
+ case 'tool':setToolState(f.act==='on');yield* waitT(.4);break;
+ case 'motor':setToolState(f.rot==='cw');yield* waitT(Math.min(Math.abs(+f.n)||0,3));break;
+ case 'resetG':PR.g0=P.a;break;
+ case 'resetT':PR.t=0;break;
+ case 'wait':yield* waitT(+f.n||0);break;
+ case 'waitUntil':while(PR.running&&!cond(f))yield;break;
+ case 'repeat':for(let i=0;i<Math.round(+f.n||0)&&PR.running;i++){yield* execList(b.b);yield}break;
+ case 'forever':while(PR.running){yield* execList(b.b);yield}break;
+ case 'repeatUntil':while(PR.running&&!cond(f)){yield* execList(b.b);yield}break;
+ case 'if':if(cond(f))yield* execList(b.b);break;
+ case 'ifElse':yield* execList(cond(f)?b.b:b.e);break;
+ case 'stopProg':PR.running=false;break;
+ case 'show':toast((isSp()?'مصفوفة الوحدة: ':'شاشة البريك: ')+String(f.txt).slice(0,40));break;
+ case 'beep':beep(NOTEF[f.note]||523,Math.max(.05,+f.n||.2),'triangle');yield* waitT(+f.n||0);break}}
+function markRun(){document.querySelectorAll('#pProg .blk.run').forEach(e=>e.classList.remove('run'));if(PR.running)renderProgLight()}
+let lightT=0;function renderProgLight(){const now=performance.now();if(now-lightT<120)return;lightT=now;renderProg()}
+function progStart(fac){if(!fac&&!PROG.length){toast('البرنامج فارغ. أضف كتلاً من القائمة أولاً.');return}
+ if(menuOpen)closeMenu();loadArena();Object.assign(PR,{running:true,inp:{l:0,r:0},speed:50,t:0,g0:P.a,cur:null});P.auto=false;PR.line=0;try{PR.gen=fac?fac():execList(PROG)}catch(e){PR.running=false;pyStatus('خطأ: '+errText(e),true);return}renderProg();toast('بدأ البرنامج من مربع الانطلاق.')}
+function progStop(msg){if(!PR.running)return;PR.running=false;PR.inp={l:0,r:0};PR.cur=null;renderProg();if(msg)toast(msg);if(typeof pyCount==='function'){pyCount();$('#pyRun').textContent='تشغيل ▶'}}
+function progStep(dt){if(!PR.running)return;PR.dt=dt;PR.t+=dt;let r;try{r=PR.gen.next()}catch(e){const ln=S.pmode==='py'&&PR.line?' (السطر '+PR.line+')':'';progStop('خطأ في البرنامج'+ln+': '+errText(e));if(S.pmode==='py')pyStatus('السطر '+PR.line+': '+errText(e),true,PR.line);return}
+ if(S.pmode==='py')set('pyWords',PR.running?'يعمل الآن · السطر '+PR.line:'');
+ if(r.done||!PR.running)progStop('انتهى البرنامج في '+fmt(G.t)+'.')}
+$('#pRun').onclick=()=>PR.running?progStop('أوقفت البرنامج.'):progStart();$('#pRunHud').onclick=()=>S.pmode==='py'?pyRun():$('#pRun').onclick();
+$('#pClear').onclick=()=>{progStop();PROG.length=0;CUR={arr:PROG,i:0};saveProg();renderProg()};
+$('#pEx').onclick=()=>{progStop();if(MODELS[S.model].holdX!==104){S.model=isSp()?'sp_claw':'gripper';save();renderRobots()}const L=(t,f)=>{const b=nb(t);Object.assign(b.f,f||{});return b};
+ PROG.length=0;PROG.push(L('show',{txt:'مكعب أزرق'}),L('speed',{n:50}),L('tool',{act:'off'}),L('move',{n:35.5}),L('turn',{side:'left',n:90}),L('move',{n:34.6}),L('tool',{act:'on'}),
+  L('move',{dir:'bwd',n:34.6}),L('turn',{side:'right',n:90}),L('move',{n:142}),L('turn',{side:'left',n:90}),L('move',{n:36}),L('turn',{side:'right',n:90}),L('move',{n:10.6}),
+  L('tool',{act:'off'}),L('move',{dir:'bwd',n:15}),L('beep',{note:'G5',n:.4}));
+ CUR={arr:PROG,i:PROG.length};saveProg();if(S.arena!=='eco'){S.arena='eco';save();renderArenas();loadArena()}renderProg();toast('حمّلت مثالاً لحلبة التوازن البيئي: التقاط المكعب الأزرق ووضعه في منطقة الفرز الزرقاء. اضغط «تشغيل».')};
+setStyle(S.pstyle);
+
+
+/* ---------- Python (Pybricks-style) ---------- */
+const PY_MAX_WORDS=5000;
+const BLOCKING=new Set(['straight','turn','curve','run_angle','run_time','run_until_stalled','run_target','wait','beep','play_notes','follow_line','follow_line_distance']);
+const pyWords=t=>{const m=t.trim().match(/\S+/g);return m?m.length:0};
+class PyErr extends Error{constructor(msg,line){super(msg);this.line=line}}
+function splitSegs(line){const out=[];let i=0,cur='';
+ while(i<line.length){const ch=line[i];
+  if(ch==='#'){break}
+  if(ch==='"'||ch==="'"){const f=/[fF]$/.test(cur)&&!/\w[fF]$/.test(cur);if(f)cur=cur.slice(0,-1);out.push({c:cur});cur='';let j=i+1,s='';
+   while(j<line.length&&line[j]!==ch){if(line[j]==='\\'&&j+1<line.length){s+=line[j]+line[j+1];j+=2;continue}s+=line[j];j++}
+   if(j>=line.length)throw new PyErr('نص غير مغلق بعلامة '+ch,0);out.push({s,f});i=j+1;continue}
+  cur+=ch;i++}
+ out.push({c:cur});return out}
+function convCode(c){return c.replace(/\bis\s+not\b/g,'!==').replace(/\bis\b/g,'===').replace(/\band\b/g,'&&').replace(/\bor\b/g,'||').replace(/\bnot\b/g,'!')
+ .replace(/\bTrue\b/g,'true').replace(/\bFalse\b/g,'false').replace(/\bNone\b/g,'null').replace(/\.append\(/g,'.push(')
+ .replace(/([\w\])]+)\s*\/\/\s*([\w(]+)/g,'Math.floor($1/$2)')
+ .replace(/(^|[^=!<>\w.])([A-Za-z_]\w*)\s*=(?!=)/g,'$1__k.$2=')}
+function convExpr(line){return splitSegs(line).map(g=>g.c!==undefined?convCode(g.c):g.f?'`'+g.s.replace(/`/g,'\\`').replace(/\{([^}]*)\}/g,(m,e)=>'${'+convCode(e)+'}')+'`':JSON.stringify(g.s.replace(/\\(.)/g,(m,c)=>c==='n'?'\n':c==='t'?'\t':c))).join('')}
+function stripComment(line){let q=null;for(let i=0;i<line.length;i++){const ch=line[i];if(q){if(ch==='\\'){i++;continue}if(ch===q)q=null}else if(ch==='"'||ch==="'")q=ch;else if(ch==='#')return line.slice(0,i).replace(/\s+$/,'')}
+ if(q)throw new PyErr('نص غير مغلق بعلامة '+q,0);return line.replace(/\s+$/,'')}
+function transpile(src){const lines=src.replace(/\t/g,'    ').split('\n'),out=[],stack=[],vars=new Set(),defs=new Set();
+ for(const l of lines){const m=/^\s*def\s+([A-Za-z_]\w*)/.exec(l);if(m)defs.add(m[1])}
+ let expectIndent=null;
+ lines.forEach((raw,idx)=>{const n=idx+1;let line;try{line=stripComment(raw)}catch(e){throw new PyErr(e.message,n)}
+  if(!line.trim())return;const ind=line.match(/^ */)[0].length,t=line.trim();
+  if(expectIndent!==null){if(ind<=expectIndent)throw new PyErr('يجب أن يكون هذا السطر مُزاحاً للداخل بعد النقطتين (:) في السطر السابق',n);expectIndent=null}
+  const isCont=/^(elif\b|else\s*:)/.test(t);
+  while(stack.length&&ind<=stack[stack.length-1].ind){const b=stack[stack.length-1];if(isCont&&ind===b.ind&&b.type==='if'){stack.pop();out.push('}');break}stack.pop();out.push(b.loop?'yield;}':'}')}
+  let o=(s)=>out.push(s);let m;
+  if(/^(from|import)\b/.test(t)||/^global\b/.test(t)||t==='pass'||/^#!/.test(raw.trim()))return;
+  const opens=t.endsWith(':');
+  if(/^(if|elif|while|for|def|else)\b/.test(t)&&!opens)throw new PyErr('ينقص النقطتان (:) في نهاية السطر',n);
+  const head=t.slice(0,-1).trim();
+  const bal=s=>{let d=0;for(const ch of s){if('([{'.includes(ch))d++;if(')]}'.includes(ch))d--}return d};
+  if(bal(splitSegs(t).map(g=>g.c||'').join('')))throw new PyErr('الأقواس غير متوازنة في هذا السطر (الأسطر المتعددة غير مدعومة)',n);
+  if(opens){expectIndent=ind;
+   if((m=/^if\s+(.+)$/.exec(head))){o(`__ln(${n});if(${convExpr(m[1])}){`);stack.push({ind,type:'if'})}
+   else if((m=/^elif\s+(.+)$/.exec(head))){o(`else if(${convExpr(m[1])}){`);stack.push({ind,type:'if'})}
+   else if(head==='else'){o('else{');stack.push({ind,type:'else'})}
+   else if((m=/^while\s+(.+)$/.exec(head))){o(`__ln(${n});while(${convExpr(m[1])}){`);stack.push({ind,type:'while',loop:1})}
+   else if((m=/^for\s+([A-Za-z_]\w*)\s+in\s+(.+)$/.exec(head))){vars.add(m[1]);o(`__ln(${n});for(${m[1]} of __iter(${convExpr(m[2])})){`);stack.push({ind,type:'for',loop:1})}
+   else if((m=/^def\s+([A-Za-z_]\w*)\s*\((.*)\)$/.exec(head))){o(`function* ${m[1]}(${m[2].replace(/\s*=\s*/g,'=')}){`);stack.push({ind,type:'def'})}
+   else throw new PyErr('هذه الصيغة غير مدعومة: '+head.split(/\s/)[0],n);
+   return}
+  if(t==='break'||t==='continue'){o(`${t};`);return}
+  if((m=/^return\b\s*(.*)$/.exec(t))){o(`return ${m[1]?convExpr(m[1]):''};`);return}
+  if(/^(try|except|finally|with|class|lambda|async|await|yield)\b/.test(t))throw new PyErr('الكلمة «'+t.split(/\W/)[0]+'» غير مدعومة في المحاكي',n);
+  if((m=/^([A-Za-z_]\w*(?:\[[^\]]+\])?)\s*(=|\+=|-=|\*=|\/=|%=)(?!=)\s*(.+)$/.exec(t))){if(/,/.test(m[1]))throw new PyErr('الإسناد المتعدد غير مدعوم',n);
+   if(!m[1].includes('['))vars.add(m[1]);o(`__ln(${n});${m[1]}${m[2]}${convExpr(m[3])};`);return}
+  if(/^[A-Za-z_]\w*\s*,/.test(t)&&/=/.test(t))throw new PyErr('الإسناد المتعدد غير مدعوم، اكتب كل متغير في سطر',n);
+  const call=/^([A-Za-z_][\w.]*)\s*\(/.exec(t),name=call?call[1].split('.').pop():'';
+  o(`__ln(${n});${(BLOCKING.has(name)||defs.has(call&&call[1]))?'yield* ':''}${convExpr(t)};`)});
+ if(expectIndent!==null)throw new PyErr('ينقص سطر مُزاح بعد النقطتين (:) في آخر الكود',lines.length);
+ while(stack.length){const b=stack.pop();out.push(b.loop?'yield;}':'}')}
+ for(const d of defs)vars.delete(d);
+ return (vars.size?'let '+[...vars].join(',')+';\n':'')+out.join('\n')}
+function pyApi(out){const k={},take=()=>{const o={...k};for(const x in k)delete k[x];return o};
+ const m=()=>MODELS[P.key],maxDeg=()=>m().maxV/(Math.PI*m().D)*360;
+ const Port={A:'A',B:'B',C:'C',D:'D',E:'E',F:'F',S1:'S1',S2:'S2',S3:'S3',S4:'S4'};
+ const Color={BLACK:'black',WHITE:'white',RED:'red',GREEN:'green',BLUE:'blue',YELLOW:'yellow',BROWN:'brown',ORANGE:'orange',MAGENTA:'magenta',VIOLET:'violet',CYAN:'cyan',NONE:null};
+ const Direction={CLOCKWISE:1,COUNTERCLOCKWISE:-1},Stop={HOLD:'hold',BRAKE:'brake',COAST:'coast'},Button={CENTER:'center',LEFT:'left',RIGHT:'right',UP:'up',DOWN:'down'};
+ const side={L:0,R:0};const apply=()=>setDrive(side.L,side.R);
+ function* settle(){let t=0;while(PR.running&&t<.35&&(Math.abs(P.pL)+Math.abs(P.pR))>.02){t+=PR.dt;yield}}
+ function Motor(port){take();const mo={port,role:(isSp()?{E:'L',F:'R'}:{B:'L',C:'R'})[port]||'T',a0:0};
+  const sd=()=>mo.role==='L'?P.sL:P.sR;
+  mo.run=sp=>{if(mo.role==='T')setToolState(sp>0);else{side[mo.role]=clamp(sp/maxDeg(),-1,1);apply()}};
+  mo.stop=mo.brake=mo.hold=()=>{if(mo.role!=='T'){side[mo.role]=0;apply()}};
+  mo.angle=()=>mo.role==='T'?Math.round(P.toolA*90):Math.round(sd()/(Math.PI*m().D)*360-mo.a0);
+  mo.reset_angle=(a=0)=>{if(mo.role!=='T')mo.a0=sd()/(Math.PI*m().D)*360-a};
+  mo.speed=()=>0;
+  mo.run_angle=function*(sp,ang){take();if(mo.role==='T'){setToolState(sp*ang>0);yield* waitT(clamp(Math.abs(ang/(sp||1)),.25,2));return}
+   const s0=sd(),need=Math.abs(ang)/360*Math.PI*m().D,sg=Math.sign(sp*ang);while(PR.running&&Math.abs(sd()-s0)<need){side[mo.role]=sg*clamp(Math.abs(sp)/maxDeg(),.05,1);apply();yield}side[mo.role]=0;apply();yield};
+  mo.run_target=function*(sp,tg){take();if(mo.role==='T'){setToolState(tg>0);yield* waitT(.4);return}yield* mo.run_angle(sp,tg-mo.angle())};
+  mo.run_time=function*(sp,ms){take();if(mo.role==='T'){setToolState(sp>0);yield* waitT(ms/1000);return}side[mo.role]=clamp(sp/maxDeg(),-1,1);apply();yield* waitT(ms/1000);side[mo.role]=0;apply()};
+  mo.run_until_stalled=function*(sp){take();if(mo.role==='T'){setToolState(sp>0);yield* waitT(.5);return 0}yield* mo.run_time(sp,1000);return 0};
+  return mo}
+ function DriveBase(l,r){take();l.role='L';r.role='R';const st={ss:m().maxV*.5,tr:120,d0:(P.sL+P.sR)/2,a0:P.a};
+  const pw=v=>clamp(v/m().maxV,-1,1);
+  const db={settings(){const o=take();if(o.straight_speed)st.ss=Math.abs(o.straight_speed);if(o.turn_rate)st.tr=Math.abs(o.turn_rate);return[st.ss,0,st.tr,0]},
+   drive(sp,tr){const d=(tr*Math.PI/180)*m().track/m().turnK;side.L=pw(sp+d/2);side.R=pw(sp-d/2);apply()},
+   stop(){side.L=side.R=0;apply()},brake(){db.stop()},
+   distance(){return Math.round((P.sL+P.sR)/2-st.d0)},angle(){return Math.round((P.a-st.a0)*180/Math.PI)},
+   reset(){st.d0=(P.sL+P.sR)/2;st.a0=P.a},state(){return[db.distance(),0,db.angle(),0]},
+   *straight(mm){take();const s0=(P.sL+P.sR)/2,need=Math.abs(mm),sg=Math.sign(mm)||1;
+    while(PR.running){const rem=need-Math.abs((P.sL+P.sR)/2-s0);if(rem<=1)break;const v=pw(st.ss)*clamp(rem/80,.22,1)*sg;side.L=side.R=v;apply();yield}db.stop();yield* settle()},
+   *turn(deg){take();const a0=P.a,need=Math.abs(deg)*Math.PI/180,sg=Math.sign(deg)||1;
+    while(PR.running){const rem=need-Math.abs(P.a-a0);if(rem<=.003)break;const d=(st.tr*Math.PI/180)*m().track/m().turnK*clamp(rem/.45,.2,1);side.L=sg*pw(d/2);side.R=-sg*pw(d/2);apply();yield}db.stop();yield* settle()},
+   *curve(radius,ang){take();const a0=P.a,need=Math.abs(ang)*Math.PI/180,w=st.ss/Math.max(1,Math.abs(radius)),sg=Math.sign(ang)*Math.sign(radius||1);
+    while(PR.running&&Math.abs(P.a-a0)<need){const d=w*m().track/m().turnK*sg;side.L=pw(st.ss+d/2);side.R=pw(st.ss-d/2);apply();yield}db.stop();yield* settle()}};
+  return db}
+ const sensor=port=>({port});
+ function ColorSensor(p){take();return{...sensor(p),color:()=>P.sense.k==='none'?null:P.sense.k,reflection:()=>P.refl,ambient:()=>40,rgb:()=>{const c=P.sense.rgb;return[c[0],c[1],c[2]].map(v=>Math.round(v/2.55))},hsv:()=>[0,0,P.refl]}}
+ function UltrasonicSensor(p){take();return{...sensor(p),distance:()=>Math.round(P.us),presence:()=>false,lights:{on(){},off(){}}}}
+ function GyroSensor(p){take();const g={a0:P.a,angle:()=>Math.round((P.a-g.a0)*180/Math.PI),speed:()=>0,reset_angle:(a=0)=>{g.a0=P.a-a*Math.PI/180}};return g}
+ function TouchSensor(p){take();return{...sensor(p),pressed:()=>P.bumpT>0}}
+ function ForceSensor(p){take();return{...sensor(p),pressed:()=>P.bumpT>0,touched:()=>P.bumpT>0,force:()=>P.bumpT>0?5:0,distance:()=>P.bumpT>0?8:0}}
+ const say=t=>{out.push(String(t));renderPyOut()};
+ const speaker={beep:function*(f=500,d=100){const o=take();if(o.frequency)f=o.frequency;if(o.duration)d=o.duration;beep(f,Math.max(.05,d/1000),'square');yield* waitT(d/1000)},play_notes:function*(){yield* waitT(.5)},say(t){say('🔊 '+t)},set_volume(){}};
+ const light={on(c){},off(){},blink(){}};
+ function EV3Brick(){take();return{speaker,light,buttons:{pressed:()=>[]},screen:{print:(...a)=>{say(a.join(' '));toast('شاشة البريك: '+a.join(' '))},draw_text:(x,y,t)=>{toast('شاشة البريك: '+t)},clear(){}},battery:{voltage:()=>7800}}}
+ function PrimeHub(){take();const h0={a:P.a};return{speaker,light,buttons:{pressed:()=>[]},display:{text:t=>toast('مصفوفة الوحدة: '+t),number:n=>toast('مصفوفة الوحدة: '+n),char:c=>toast('مصفوفة الوحدة: '+c),off(){},icon(){}},
+  imu:{heading:()=>Math.round((P.a-h0.a)*180/Math.PI),reset_heading:(a=0)=>{h0.a=P.a-a*Math.PI/180},tilt:()=>[0,0],ready:()=>true},battery:{voltage:()=>8000}}}
+ function StopWatch(){take();let t0=PR.t,paused=null;return{time:()=>Math.round(((paused??PR.t)-t0)*1000),reset(){t0=PR.t},pause(){paused=PR.t},resume(){if(paused!=null){t0+=PR.t-paused;paused=null}}}}
+ function* wait(ms){take();yield* waitT((+ms||0)/1000)}
+ function* follow_line(n=1){const o=take();n=o.intersections||n;let c=0;yield* followLine(q=>q==='x'&&++c>=n)}
+ function* follow_line_distance(mm){take();const s0=(P.sL+P.sR)/2;yield* followLine(q=>q==='d'&&Math.abs((P.sL+P.sR)/2-s0)>=Math.abs(mm))}
+ const fmtv=v=>v===null?'None':v===true?'True':v===false?'False':Array.isArray(v)?'['+v.map(fmtv).join(', ')+']':typeof v==='number'?String(Math.round(v*1000)/1000):String(v);
+ function print(...a){const o=take();say(a.map(fmtv).join(o.sep!=null?o.sep:' '))}
+ const range=(a,b,c=1)=>{take();if(b===undefined){b=a;a=0}const r=[];if(c>0)for(let i=a;i<b&&r.length<1e5;i+=c)r.push(i);else for(let i=a;i>b&&r.length<1e5;i+=c)r.push(i);return r};
+ return{__k:k,__ln:n=>{PR.line=n},__iter:x=>typeof x==='string'?[...x]:x,Port,Color,Direction,Stop,Button,Motor,DriveBase,ColorSensor,UltrasonicSensor,GyroSensor,TouchSensor,ForceSensor,EV3Brick,PrimeHub,StopWatch,
+  wait,follow_line,follow_line_distance,print,range,len:x=>{take();return x.length},abs:Math.abs,min:(...a)=>{take();return Math.min(...(a.length===1?a[0]:a))},max:(...a)=>{take();return Math.max(...(a.length===1?a[0]:a))},
+  round:(x,d=0)=>{take();return d?Math.round(x*10**d)/10**d:Math.round(x)},int:x=>{take();return Math.trunc(+x)},float:x=>+x,str:x=>fmtv(x),bool:x=>!!x,Math}}
+const pyOut=[];
+function renderPyOut(){const e=$('#pyOut');e.textContent=pyOut.slice(-80).join('\n');e.scrollTop=e.scrollHeight;e.hidden=!pyOut.length}
+function pyCompile(src){const js=transpile(src);pyOut.length=0;const api=pyApi(pyOut);let fac;
+ try{fac=new Function('API','with(API){return function*(){\n'+js+'\n}}')}catch(e){throw new PyErr('خطأ في صياغة الكود: '+e.message+'. راجع آخر سطر عدّلته.',0)}
+ return ()=>fac(api)()}
+function pyGoLine(n){const ta=$('#pyCode');if(!n)return;const ls=ta.value.split('\n');let a=0;for(let i=0;i<n-1&&i<ls.length;i++)a+=ls[i].length+1;ta.focus();ta.setSelectionRange(a,a+(ls[n-1]||'').length)}
+function pyStatus(msg,bad,line){const e=$('#pyMsg');e.textContent=msg;e.classList.toggle('bad',!!bad);e.hidden=!msg;if(line)pyGoLine(line)}
+function pyCount(){const w=pyWords($('#pyCode').value),e=$('#pyWords');e.textContent=w.toLocaleString('en')+' / '+PY_MAX_WORDS.toLocaleString('en')+' كلمة';e.classList.toggle('bad',w>PY_MAX_WORDS);return w}
+function pyRun(){if(PR.running){progStop('أوقفت البرنامج.');return}const src=$('#pyCode').value;
+ if(pyCount()>PY_MAX_WORDS){pyStatus('الكود أطول من الحد الأقصى ('+PY_MAX_WORDS+' كلمة). اختصره ثم شغّله.',true);return}
+ let fac;try{fac=pyCompile(src)}catch(e){pyStatus((e.line?'السطر '+e.line+': ':'')+e.message,true,e.line);return}
+ pyStatus('',false);renderPyOut();progStart(fac)}
+function pyDefault(){return isSp()?`from pybricks.hubs import PrimeHub
+from pybricks.pupdevices import Motor, ColorSensor, UltrasonicSensor
+from pybricks.parameters import Port, Direction, Color
+from pybricks.robotics import DriveBase
+from pybricks.tools import wait
+
+hub = PrimeHub()
+left = Motor(Port.E, Direction.COUNTERCLOCKWISE)
+right = Motor(Port.F)
+claw = Motor(Port.A)
+line = ColorSensor(Port.C)
+eyes = UltrasonicSensor(Port.D)
+robot = DriveBase(left, right, wheel_diameter=56, axle_track=112)
+robot.settings(straight_speed=200, turn_rate=120)
+
+# افتح المخلب ثم اتجه إلى المكعب الأزرق الأول
+hub.display.text("GO")
+claw.run_angle(300, -90)
+robot.straight(355)
+robot.turn(-90)
+robot.straight(346)
+claw.run_until_stalled(300)
+
+# ارجع إلى المحور ثم إلى منطقة الفرز الزرقاء
+robot.straight(-346)
+robot.turn(90)
+robot.straight(1420)
+robot.turn(-90)
+robot.straight(360)
+robot.turn(90)
+robot.straight(106)
+claw.run_angle(300, -90)
+robot.straight(-150)
+hub.speaker.beep()
+print("المسافة أمامي (مم):", eyes.distance())
+`:`#!/usr/bin/env pybricks-micropython
+from pybricks.hubs import EV3Brick
+from pybricks.ev3devices import Motor, ColorSensor, UltrasonicSensor
+from pybricks.parameters import Port, Color
+from pybricks.robotics import DriveBase
+from pybricks.tools import wait
+
+ev3 = EV3Brick()
+left = Motor(Port.B)
+right = Motor(Port.C)
+claw = Motor(Port.A)
+line = ColorSensor(Port.S3)
+eyes = UltrasonicSensor(Port.S4)
+robot = DriveBase(left, right, wheel_diameter=56, axle_track=112)
+robot.settings(straight_speed=200, turn_rate=120)
+
+# افتح المخلب ثم اتجه إلى المكعب الأزرق الأول
+claw.run_angle(300, -90)
+robot.straight(355)
+robot.turn(-90)
+robot.straight(346)
+claw.run_until_stalled(300)
+
+# ارجع إلى المحور ثم إلى منطقة الفرز الزرقاء
+robot.straight(-346)
+robot.turn(90)
+robot.straight(1420)
+robot.turn(-90)
+robot.straight(360)
+robot.turn(90)
+robot.straight(106)
+claw.run_angle(300, -90)
+robot.straight(-150)
+ev3.speaker.beep()
+print("المسافة أمامي (مم):", eyes.distance())
+`}
+const pyTA=$('#pyCode');pyTA.value=typeof S.py==='string'&&S.py?S.py:pyDefault();pyCount();
+let pySaveT=0;pyTA.addEventListener('input',()=>{pyCount();clearTimeout(pySaveT);pySaveT=setTimeout(()=>{S.py=pyTA.value;save()},400)});
+pyTA.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const a=pyTA.selectionStart,b=pyTA.selectionEnd;pyTA.setRangeText('    ',a,b,'end');pyTA.dispatchEvent(new Event('input'))}
+ else if(e.key==='Enter'){const a=pyTA.selectionStart,before=pyTA.value.slice(0,a),ln=before.split('\n').pop(),ind=ln.match(/^ */)[0]+(/:\s*$/.test(ln)?'    ':'');if(ind){e.preventDefault();pyTA.setRangeText('\n'+ind,a,pyTA.selectionEnd,'end');pyTA.dispatchEvent(new Event('input'))}}});
+$('#pyRun').onclick=pyRun;
+$('#pyEx').onclick=()=>{progStop();pyTA.value=pyDefault();S.py=pyTA.value;save();pyCount();if(MODELS[S.model].holdX!==104){S.model=isSp()?'sp_claw':'gripper';save();renderRobots()}if(S.arena!=='eco'){S.arena='eco';save();renderArenas();loadArena()}pyStatus('حمّلت مثالاً بصيغة Pybricks لحلبة التوازن البيئي. اضغط «تشغيل».')};
+$('#pyCheck').onclick=()=>{if(pyCount()>PY_MAX_WORDS){pyStatus('الكود أطول من '+PY_MAX_WORDS+' كلمة.',true);return}try{pyCompile(pyTA.value);pyStatus('الكود سليم وجاهز للتشغيل في المحاكي.')}catch(e){pyStatus((e.line?'السطر '+e.line+': ':'')+e.message,true,e.line)}};
+function setPMode(v){S.pmode=v;save();$('#blkPane').hidden=v!=='blocks';$('#pyPane').hidden=v!=='py';$('#segPMode').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===v)))}
+$('#segPMode').querySelectorAll('button').forEach(b=>b.onclick=()=>setPMode(b.dataset.v));setPMode(S.pmode==='py'?'py':'blocks');
+
+window.__ev3={PR,get P(){return P},get A(){return A},get G(){return G}};
+/* ---------- loop ---------- */
+function padStep(){pad=pollPad();if(!pad){padType=padBlocked?'none':padType==='none'?'none':padType;padPrev=[];if(padType!=='none'){padType='none';helpFor=''}renderKeys();return}
+ const id=pad.id.toLowerCase();let t=/054c|dualsense|dualshock|playstation|wireless controller/.test(id)?'ps':/xbox|045e|xinput/.test(id)?'xbox':'generic';if(S.gp.glyph==='ps'||S.gp.glyph==='xbox')t=S.gp.glyph;
+ if(t!==padType){padType=t;helpFor=''}renderKeys();
+ const now=pad.buttons.map(b=>b.pressed),edge=i=>now[i]&&!padPrev[i];
+ if(bindWait){for(let i=0;i<now.length;i++)if(edge(i)){S.gp.map[bindWait]=i;bindWait=null;save();helpFor='';renderPadTab();beep(880,.08);break}padPrev=now;return}
+ const M=S.gp.map;
+ if(edge(M.tool))act('tool');if(edge(M.auto))act('auto');if(edge(M.cam))act('cam');if(edge(M.robotm))act('robot-');if(edge(M.robotp))act('robot+');if(edge(M.arena))act('arena+');if(edge(M.reset))act('reset');
+ padPrev=now}
+let last=performance.now();
+let err3=0,errL=0;
+function toast(t){const e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>{e.hidden=true},9000)}
+function errText(e){let m=((e&&e.message)||String(e));
+ m=m.replace(/^(\w+) is not defined$/,'«$1» غير معرّف — تأكد من كتابة الاسم أو من سطر إنشائه')
+  .replace(/^([\w.]+) is not a function$/,'«$1» ليس أمراً معروفاً — راجع قائمة الأوامر المدعومة')
+  .replace(/^Cannot read propert(?:y|ies) of (?:undefined|null) \(reading '(\w+)'\)$/,'تحاول استخدام «$1» من شيء غير موجود')
+  .replace(/^(\w+) is not iterable$/,'«$1» لا يمكن المرور عليه في for');return m.slice(0,200)}
+function frame(t){requestAnimationFrame(frame);let dt=Math.min(.05,(t-last)/1000);last=t;
+ try{padStep();let inp=gather();if(PR.running)inp={l:PR.inp.l,r:PR.inp.r,brake:false,user:false};if(!menuOpen){progStep(dt);const steps=2;for(let i=0;i<steps;i++)physics(dt/steps,inp);game(dt)}errL=0}
+ catch(e){if(++errL===1){console.error(e);toast('خطأ في المحاكاة: '+errText(e))}}
+ try{if(S.view==='3d'&&V3.ok){draw3D(dt);err3=0}else draw(dt)}
+ catch(e){console.error(e);if(S.view==='3d'&&++err3>=3){S.view='2d';save();syncSeg();resize();toast('توقف العرض 3D بسبب خطأ في المتصفح ('+errText(e)+'). تحولت إلى العرض الثنائي، ويمكنك إعادة المحاولة من الإعدادات.')}}
+ try{overlay();hud(dt)}catch(e){}}
+
+showPane(['robot','arena','prog','ai','set','pad','help'].includes(S.ptab)?S.ptab:'robot');
+init3D();if(!V3.ok){S.view='2d';const b=$('#segView [data-v="3d"]');b.disabled=true;b.title='المتصفح لا يدعم WebGL'}resize();renderColors();renderArenas();syncSeg();renderTouchTab();loadArena();renderRobots();renderKeys();openMenu();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{loadArena();renderRobots();renderArenas(true)});
+requestAnimationFrame(frame);
+})();
+</script>
